@@ -34,6 +34,8 @@ interface Hall {
   }[];
 }
 
+const BASE = import.meta.env.BASE_URL;
+
 const halls: Hall[] = [
   {
     key: "main",
@@ -41,7 +43,7 @@ const halls: Hall[] = [
     subtitle: "Open dining, vibrant atmosphere",
     icon: <Users size={20} />,
     color: "#c9a84c",
-    image: "/main-hall.jpg",
+    image: `${BASE}main-hall.jpg`,
     sections: [
       {
         tables: [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => ({
@@ -58,7 +60,7 @@ const halls: Hall[] = [
     subtitle: "Air-conditioned comfort",
     icon: <Wind size={20} />,
     color: "#60a5fa",
-    image: "/ac-hall.jpg",
+    image: `${BASE}ac-hall.jpg`,
     sections: [
       {
         title: "Friends — 4 Seater",
@@ -86,7 +88,7 @@ const halls: Hall[] = [
     subtitle: "Nature-themed open ambiance",
     icon: <Leaf size={20} />,
     color: "#4ade80",
-    image: "https://images.unsplash.com/photo-1533777857889-4be7c70b33f7?w=600&q=80",
+    image: `${BASE}majlis-hall.jpg`,
     sections: [
       {
         title: "6 Seater Tables",
@@ -104,7 +106,7 @@ const halls: Hall[] = [
     subtitle: "Exclusive private dining experience",
     icon: <Flame size={20} />,
     color: "#ef4444",
-    image: "/red-room.jpg",
+    image: `${BASE}red-room.jpg`,
     sections: [
       {
         title: "8 Seater Tables",
@@ -122,7 +124,7 @@ const halls: Hall[] = [
     subtitle: "A wonderful Arabian dinner experience",
     icon: <Moon size={20} />,
     color: "#f59e0b",
-    image: "/majlis-hall-2.jpg",
+    image: `${BASE}majlis-hall-2.jpg`,
     sections: [
       {
         title: "6 Seater Tables",
