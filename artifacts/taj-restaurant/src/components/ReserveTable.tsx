@@ -4,6 +4,11 @@ import {
   X, CalendarCheck, Clock, User, Phone, CheckCircle,
   ChevronLeft, Users, Wind, Leaf, Moon, Flame
 } from "lucide-react";
+import mainHallImg from "../assets/main-hall.jpg";
+import acHallImg from "../assets/ac-hall.jpg";
+import majlisHallImg from "../assets/majlis-hall.jpg";
+import majlisHall2Img from "../assets/majlis-hall-2.jpg";
+import redRoomImg from "../assets/red-room.jpg";
 
 interface Props {
   open: boolean;
@@ -34,8 +39,6 @@ interface Hall {
   }[];
 }
 
-const BASE = import.meta.env.BASE_URL;
-
 const halls: Hall[] = [
   {
     key: "main",
@@ -43,7 +46,7 @@ const halls: Hall[] = [
     subtitle: "Open dining, vibrant atmosphere",
     icon: <Users size={20} />,
     color: "#c9a84c",
-    image: `${BASE}main-hall.jpg`,
+    image: mainHallImg,
     sections: [
       {
         tables: [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => ({
@@ -60,7 +63,7 @@ const halls: Hall[] = [
     subtitle: "Air-conditioned comfort",
     icon: <Wind size={20} />,
     color: "#60a5fa",
-    image: `${BASE}ac-hall.jpg`,
+    image: acHallImg,
     sections: [
       {
         title: "Friends — 4 Seater",
@@ -88,7 +91,7 @@ const halls: Hall[] = [
     subtitle: "Nature-themed open ambiance",
     icon: <Leaf size={20} />,
     color: "#4ade80",
-    image: `${BASE}majlis-hall.jpg`,
+    image: majlisHallImg,
     sections: [
       {
         title: "6 Seater Tables",
@@ -106,7 +109,7 @@ const halls: Hall[] = [
     subtitle: "Exclusive private dining experience",
     icon: <Flame size={20} />,
     color: "#ef4444",
-    image: `${BASE}red-room.jpg`,
+    image: redRoomImg,
     sections: [
       {
         title: "8 Seater Tables",
@@ -124,7 +127,7 @@ const halls: Hall[] = [
     subtitle: "A wonderful Arabian dinner experience",
     icon: <Moon size={20} />,
     color: "#f59e0b",
-    image: `${BASE}majlis-hall-2.jpg`,
+    image: majlisHall2Img,
     sections: [
       {
         title: "6 Seater Tables",
