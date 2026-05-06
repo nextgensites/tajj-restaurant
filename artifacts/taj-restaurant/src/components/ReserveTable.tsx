@@ -9,6 +9,7 @@ import acHallImg from "../assets/ac-hall.jpg";
 import majlisHallImg from "../assets/majlis-hall.jpg";
 import majlisHall2Img from "../assets/majlis-hall-2.jpg";
 import redRoomImg from "../assets/red-room.jpg";
+import newMajlisFamilyImg from "../assets/new-majlis-family.jpg";
 
 interface Props {
   open: boolean;
@@ -147,6 +148,24 @@ const halls: Hall[] = [
             special: "Couple",
           },
         ],
+      },
+    ],
+  },
+  {
+    key: "new-majlis-family",
+    name: "New Majlis Family",
+    subtitle: "Spacious family seating, Arabian style",
+    icon: <Users size={20} />,
+    color: "#a78bfa",
+    image: newMajlisFamilyImg,
+    sections: [
+      {
+        title: "10 Seater Tables",
+        tables: [1, 2, 3, 4, 5].map(n => ({
+          id: `new-majlis-family-${n}`,
+          label: `Table ${n}`,
+          seats: 10,
+        })),
       },
     ],
   },
