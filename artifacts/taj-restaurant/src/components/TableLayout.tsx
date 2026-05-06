@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Wind, Leaf, Moon, Info, X, ShieldCheck, Unlock } from "lucide-react";
+import { Users, Wind, Leaf, Moon, Flame, Info, X, ShieldCheck, Unlock } from "lucide-react";
 import type { TableStatus } from "@/App";
 
 interface TableDef {
@@ -81,6 +81,33 @@ const halls: Hall[] = [
       { id: "majlis-couple-4", label: "T4", seats: 2, row: 1, col: 0, special: "Couple" },
       { id: "majlis-5",        label: "T5", seats: 6, row: 1, col: 1 },
       { id: "majlis-6",        label: "T6", seats: 6, row: 1, col: 2 },
+    ],
+  },
+  {
+    key: "red",
+    name: "Red Room",
+    subtitle: "Exclusive private dining",
+    icon: <Flame size={16} />,
+    accentColor: "#ef4444",
+    tables: [
+      { id: "red-room-1", label: "T1", seats: 8, row: 0, col: 0 },
+      { id: "red-room-2", label: "T2", seats: 8, row: 0, col: 1 },
+      { id: "red-room-3", label: "T3", seats: 8, row: 1, col: 0 },
+      { id: "red-room-4", label: "T4", seats: 8, row: 1, col: 1 },
+    ],
+  },
+  {
+    key: "new-majlis-family",
+    name: "New Majlis Family",
+    subtitle: "Spacious family seating, Arabian style",
+    icon: <Users size={16} />,
+    accentColor: "#a78bfa",
+    tables: [
+      { id: "new-majlis-family-1", label: "T1", seats: 10, row: 0, col: 0 },
+      { id: "new-majlis-family-2", label: "T2", seats: 10, row: 0, col: 1 },
+      { id: "new-majlis-family-3", label: "T3", seats: 10, row: 1, col: 0 },
+      { id: "new-majlis-family-4", label: "T4", seats: 10, row: 1, col: 1 },
+      { id: "new-majlis-family-5", label: "T5", seats: 10, row: 2, col: 0 },
     ],
   },
 ];
