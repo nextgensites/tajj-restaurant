@@ -207,7 +207,8 @@ export default function FoodBooking({ open, onClose }: Props) {
     e.preventDefault();
     const lines = cartItems.map(d => `  • ${d.name} x${cart[d.id]} = ₹${d.price * cart[d.id]}`).join("\n");
     const hallName = currentHall?.name ?? selectedHall;
-    const msg = encodeURIComponent(
+
+    const orderText =
       `Hello Tajj Restaurant (Shahid)!\n\n` +
       `🪑 Dine-In Order\n\n` +
       `Hall: ${hallName}\n` +
@@ -216,9 +217,14 @@ export default function FoodBooking({ open, onClose }: Props) {
       `Phone: ${phone}\n\n` +
       `Order:\n${lines}\n\n` +
       `Total: ₹${total}\n\n` +
-      `Please confirm my order. Thank you!`
-    );
-    window.open(`https://wa.me/918880918007?text=${msg}`, "_blank");
+      `Please confirm my order. Thank you!`;
+
+    window.open(`https://wa.me/918880918007?text=${encodeURIComponent(orderText)}`, "_blank");
+
+    const emailSubject = encodeURIComponent(`New Dine-In Order — ${hallName}, Table ${selectedTable}`);
+    const emailBody = encodeURIComponent(orderText);
+    window.open(`mailto:shahid9566235400@gmail.com?subject=${emailSubject}&body=${emailBody}`, "_blank");
+
     setSubmitted(true);
   };
 
@@ -315,7 +321,7 @@ export default function FoodBooking({ open, onClose }: Props) {
                     </div>
                     <h3 className="text-xl font-serif text-[#f5f5f0]">Order Placed!</h3>
                     <p className="text-[#f5f5f0]/55 text-sm leading-relaxed max-w-xs">
-                      Your order from <span className="text-[#c9a84c]">{currentHall?.name}</span>, Table <span className="text-[#c9a84c]">{selectedTable}</span> has been sent via WhatsApp. We'll confirm shortly.
+                      Your order from <span className="text-[#c9a84c]">{currentHall?.name}</span>, Table <span className="text-[#c9a84c]">{selectedTable}</span> has been sent via WhatsApp and Email. We'll confirm shortly.
                     </p>
                     <button
                       onClick={handleClose}
