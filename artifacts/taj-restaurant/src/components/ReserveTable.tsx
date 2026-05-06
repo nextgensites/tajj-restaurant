@@ -192,7 +192,7 @@ export default function ReserveTable({ open, onClose, occupiedTableIds }: Props)
     })();
 
     const msg = encodeURIComponent(
-      `*New Table Reservation — Tajj Resturant (Shahid)*\n\n` +
+      `*New Table Reservation — Tajj Restaurant (Shahid)*\n\n` +
       `*Hall:* ${hall.name}\n` +
       `*Section:* ${sectionName}\n` +
       `*Table:* ${table.label}${table.special ? ` (${table.special})` : ""}\n` +
@@ -237,7 +237,7 @@ export default function ReserveTable({ open, onClose, occupiedTableIds }: Props)
             {/* Header */}
             <div className="flex items-center justify-between px-6 md:px-8 pt-6 pb-4 border-b border-[#c9a84c]/15 flex-shrink-0">
               <div>
-                <p className="text-[10px] tracking-[0.35em] text-[#8b0000] uppercase mb-1">Tajj Resturant (Shahid)</p>
+                <p className="text-[10px] tracking-[0.35em] text-[#8b0000] uppercase mb-1">Tajj Restaurant (Shahid)</p>
                 <h2 className="text-xl md:text-2xl font-serif text-[#c9a84c]">Reserve a Table</h2>
               </div>
               <button onClick={handleClose} className="text-[#f5f5f0]/40 hover:text-[#c9a84c] transition-colors">
