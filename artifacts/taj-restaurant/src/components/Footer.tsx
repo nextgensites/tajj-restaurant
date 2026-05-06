@@ -40,7 +40,7 @@ export default function Footer() {
         </div>
 
         <div className="text-center border-t border-white/10 pt-8 text-[#f5f5f0]/40 text-xs font-light tracking-wide">
-          &copy; {new Date().getFullYear()} Tajj Resturant (Shahid). All rights reserved.
+          &copy; {new Date().getFullYear()} Tajj Restaurant (Shahid). All rights reserved.
         </div>
       </div>
     </footer>
