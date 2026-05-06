@@ -31,7 +31,7 @@ export default function Loader() {
             transition={{ delay: 0.2 }}
             className="text-2xl md:text-4xl font-serif text-[#c9a84c] tracking-widest text-center"
           >
-            TAJJ RESTURANT
+            TAJJ RESTAURANT
           </motion.h1>
           <motion.p
             initial={{ opacity: 0 }}
