@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -118,9 +118,20 @@ function Home() {
 
   const [staffMode, setStaffMode] = useState(false);
   const [showPin, setShowPin] = useState(false);
-  const [tableStatuses, setTableStatuses] = useState<Record<string, TableStatus>>(
-    () => Object.fromEntries(ALL_TABLE_IDS.map(id => [id, "available" as TableStatus]))
-  );
+  const [tableStatuses, setTableStatuses] = useState<Record<string, TableStatus>>(() => {
+    try {
+      const saved = localStorage.getItem("tajj-table-statuses");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Object.fromEntries(ALL_TABLE_IDS.map(id => [id, parsed[id] ?? ("available" as TableStatus)]));
+      }
+    } catch {}
+    return Object.fromEntries(ALL_TABLE_IDS.map(id => [id, "available" as TableStatus]));
+  });
+
+  useEffect(() => {
+    localStorage.setItem("tajj-table-statuses", JSON.stringify(tableStatuses));
+  }, [tableStatuses]);
 
   const occupiedIds = Object.entries(tableStatuses)
     .filter(([, s]) => s === "occupied")
