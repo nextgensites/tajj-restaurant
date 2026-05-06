@@ -53,7 +53,7 @@ export default function Navbar({ onReserve, onFoodBook, onStaffLogin }: Props) {
           onClick={onLogoClick}
           className="text-lg md:text-xl font-serif text-[#c9a84c] font-bold tracking-wider flex-shrink-0 select-none"
         >
-          TAJJ RESTURANT
+          TAJJ RESTAURANT
         </a>
 
         {/* Desktop Nav Links */}
