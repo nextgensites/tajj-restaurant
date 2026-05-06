@@ -19,7 +19,7 @@ export default function About() {
               A Legacy of Spice & Smoke
             </h3>
             <p className="text-lg md:text-2xl text-[#f5f5f0] font-light leading-relaxed opacity-80">
-              Tajj Resturant (Shahid) is a popular dining destination in Hoskote known for its delicious biryani, kebabs, and Indian cuisine. We use fresh ingredients and authentic recipes to deliver rich taste and quality service.
+              Tajj Restaurant (Shahid) is a popular dining destination in Hoskote known for its delicious biryani, kebabs, and Indian cuisine. We use fresh ingredients and authentic recipes to deliver rich taste and quality service.
             </p>
             <div className="mt-12 w-24 h-[1px] bg-[#c9a84c]/50 mx-auto" />
           </motion.div>
