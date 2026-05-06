@@ -45,6 +45,11 @@ const halls = [
     name: "Red Room",
     tables: [1, 2, 3, 4],
   },
+  {
+    id: "new-majlis-family",
+    name: "New Majlis Family",
+    tables: [1, 2, 3, 4, 5],
+  },
 ];
 
 const menuCategories = [
