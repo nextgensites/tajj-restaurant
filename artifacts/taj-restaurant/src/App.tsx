@@ -30,6 +30,7 @@ export const ALL_TABLE_IDS = [
   "jungle-1","jungle-2","jungle-3","jungle-4","jungle-5",
   "majlis-1","majlis-2","majlis-3","majlis-couple-4","majlis-5","majlis-6",
   "red-room-1","red-room-2","red-room-3","red-room-4",
+  "new-majlis-family-1","new-majlis-family-2","new-majlis-family-3","new-majlis-family-4","new-majlis-family-5",
 ];
 
 function StaffPinOverlay({ onSuccess, onCancel }: { onSuccess: () => void; onCancel: () => void }) {
