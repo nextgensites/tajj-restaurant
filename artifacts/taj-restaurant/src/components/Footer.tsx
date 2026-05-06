@@ -7,7 +7,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
 
           <div>
-            <h4 className="text-xl font-serif text-[#c9a84c] mb-6">TAJJ RESTURANT</h4>
+            <h4 className="text-xl font-serif text-[#c9a84c] mb-6">TAJJ RESTAURANT</h4>
             <p className="text-[#f5f5f0]/60 text-sm font-light leading-relaxed">
               Authentic Indian cuisine, rich biryanis, and smoky kebabs in the heart of Hoskote.
             </p>
