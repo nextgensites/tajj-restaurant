@@ -28,7 +28,7 @@ export default function Contact() {
                 <MapPin className="w-6 h-6 text-[#c9a84c] shrink-0 mt-1" />
                 <div>
                   <h4 className="text-[#f5f5f0] font-medium mb-1">Address</h4>
-                  <p className="text-[#f5f5f0]/60 font-light">Tajj Resturant (Shahid),<br/>Hoskote, Karnataka, India</p>
+                  <p className="text-[#f5f5f0]/60 font-light">Tajj Restaurant (Shahid),<br/>Hoskote, Karnataka, India</p>
                 </div>
               </div>
               
