@@ -11,6 +11,7 @@ import majlisHallImg from "../assets/majlis-hall.jpg";
 import majlisHall2Img from "../assets/majlis-hall-2.jpg";
 import redRoomImg from "../assets/red-room.jpg";
 import newMajlisFamilyImg from "../assets/new-majlis-family.jpg";
+import jungleHallImg from "../assets/jungle-hall.jpg";
 
 interface Props {
   open: boolean;
@@ -94,7 +95,7 @@ const halls: Hall[] = [
     subtitle: "Nature-themed open ambiance",
     icon: <Leaf size={20} />,
     color: "#4ade80",
-    image: majlisHallImg,
+    image: jungleHallImg,
     sections: [
       {
         title: "6 Seater Tables",
