@@ -1,0 +1,3 @@
+[development]
+run = "PORT=5000 BASE_PATH=/ pnpm --filter @workspace/taj-restaurant run dev"
+localPort = 5000

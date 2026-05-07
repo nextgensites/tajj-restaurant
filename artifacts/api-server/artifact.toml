@@ -1,0 +1,3 @@
+[development]
+run = "PORT=8080 pnpm --filter @workspace/api-server run dev"
+localPort = 8080
