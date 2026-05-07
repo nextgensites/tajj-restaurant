@@ -3,6 +3,8 @@ modules = ["nodejs-20", "web", "bash"]
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
+run = ["bash", "-c", "PORT=5000 NODE_ENV=production node --enable-source-maps artifacts/api-server/dist/index.mjs"]
+build = ["bash", "-c", "pnpm --filter @workspace/api-server run build && PORT=5000 BASE_PATH=/ pnpm --filter @workspace/taj-restaurant run build && cp -r artifacts/taj-restaurant/dist/public artifacts/api-server/dist/public"]
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
