@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: bookings
+    description: Table reservation operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,97 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /bookings:
+    post:
+      operationId: createBooking
+      tags: [bookings]
+      summary: Create a table reservation
+      description: Creates a reservation using a PostgreSQL advisory lock to prevent concurrent double-bookings for the same table, date, and time slot.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingRequest"
+      responses:
+        "201":
+          description: Reservation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "409":
+          description: Table already reserved for this date and time
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingError"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingError"
+    get:
+      operationId: listBookings
+      tags: [bookings]
+      summary: List all reservations
+      description: Returns all reservations ordered by date and time, for staff use.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, confirmed, cancelled]
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of reservations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}:
+    patch:
+      operationId: updateBookingStatus
+      tags: [bookings]
+      summary: Update reservation status
+      description: Staff can confirm or cancel a pending reservation.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBookingStatusRequest"
+      responses:
+        "200":
+          description: Reservation updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "404":
+          description: Reservation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingError"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +127,99 @@ components:
       required:
         - status
 
+    CreateBookingRequest:
+      type: object
+      properties:
+        tableId:
+          type: string
+        hallName:
+          type: string
+        tableName:
+          type: string
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        reservationDate:
+          type: string
+          description: Date in YYYY-MM-DD format
+        reservationTime:
+          type: string
+          description: Time slot e.g. "07:00 PM"
+        guestCount:
+          type: integer
+          minimum: 1
+        specialRequest:
+          type: string
+          nullable: true
+      required:
+        - tableId
+        - hallName
+        - tableName
+        - customerName
+        - customerPhone
+        - reservationDate
+        - reservationTime
+        - guestCount
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: integer
+        tableId:
+          type: string
+        hallName:
+          type: string
+        tableName:
+          type: string
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        reservationDate:
+          type: string
+        reservationTime:
+          type: string
+        guestCount:
+          type: integer
+        specialRequest:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - tableId
+        - hallName
+        - tableName
+        - customerName
+        - customerPhone
+        - reservationDate
+        - reservationTime
+        - guestCount
+        - status
+        - createdAt
+
+    UpdateBookingStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [confirmed, cancelled]
+      required:
+        - status
+
+    BookingError:
+      type: object
+      properties:
+        error:
+          type: string
+        detail:
+          type: string
+      required:
+        - error

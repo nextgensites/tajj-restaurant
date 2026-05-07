@@ -14,3 +14,72 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Creates a reservation using a PostgreSQL advisory lock to prevent concurrent double-bookings for the same table, date, and time slot.
+ * @summary Create a table reservation
+ */
+
+export const CreateBookingBody = zod.object({
+  tableId: zod.string(),
+  hallName: zod.string(),
+  tableName: zod.string(),
+  customerName: zod.string(),
+  customerPhone: zod.string(),
+  reservationDate: zod.string().describe("Date in YYYY-MM-DD format"),
+  reservationTime: zod.string().describe('Time slot e.g. \"07:00 PM\"'),
+  guestCount: zod.number().min(1),
+  specialRequest: zod.string().nullish(),
+});
+
+/**
+ * Returns all reservations ordered by date and time, for staff use.
+ * @summary List all reservations
+ */
+export const ListBookingsQueryParams = zod.object({
+  status: zod.enum(["pending", "confirmed", "cancelled"]).optional(),
+  date: zod.coerce.string().optional(),
+});
+
+export const ListBookingsResponseItem = zod.object({
+  id: zod.number(),
+  tableId: zod.string(),
+  hallName: zod.string(),
+  tableName: zod.string(),
+  customerName: zod.string(),
+  customerPhone: zod.string(),
+  reservationDate: zod.string(),
+  reservationTime: zod.string(),
+  guestCount: zod.number(),
+  specialRequest: zod.string().nullish(),
+  status: zod.enum(["pending", "confirmed", "cancelled"]),
+  createdAt: zod.coerce.date(),
+});
+export const ListBookingsResponse = zod.array(ListBookingsResponseItem);
+
+/**
+ * Staff can confirm or cancel a pending reservation.
+ * @summary Update reservation status
+ */
+export const UpdateBookingStatusParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateBookingStatusBody = zod.object({
+  status: zod.enum(["confirmed", "cancelled"]),
+});
+
+export const UpdateBookingStatusResponse = zod.object({
+  id: zod.number(),
+  tableId: zod.string(),
+  hallName: zod.string(),
+  tableName: zod.string(),
+  customerName: zod.string(),
+  customerPhone: zod.string(),
+  reservationDate: zod.string(),
+  reservationTime: zod.string(),
+  guestCount: zod.number(),
+  specialRequest: zod.string().nullish(),
+  status: zod.enum(["pending", "confirmed", "cancelled"]),
+  createdAt: zod.coerce.date(),
+});

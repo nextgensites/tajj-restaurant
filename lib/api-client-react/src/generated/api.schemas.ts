@@ -8,3 +8,72 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface CreateBookingRequest {
+  tableId: string;
+  hallName: string;
+  tableName: string;
+  customerName: string;
+  customerPhone: string;
+  /** Date in YYYY-MM-DD format */
+  reservationDate: string;
+  /** Time slot e.g. "07:00 PM" */
+  reservationTime: string;
+  /** @minimum 1 */
+  guestCount: number;
+  specialRequest?: string | null;
+}
+
+export type BookingStatus = (typeof BookingStatus)[keyof typeof BookingStatus];
+
+export const BookingStatus = {
+  pending: "pending",
+  confirmed: "confirmed",
+  cancelled: "cancelled",
+} as const;
+
+export interface Booking {
+  id: number;
+  tableId: string;
+  hallName: string;
+  tableName: string;
+  customerName: string;
+  customerPhone: string;
+  reservationDate: string;
+  reservationTime: string;
+  guestCount: number;
+  specialRequest?: string | null;
+  status: BookingStatus;
+  createdAt: string;
+}
+
+export type UpdateBookingStatusRequestStatus =
+  (typeof UpdateBookingStatusRequestStatus)[keyof typeof UpdateBookingStatusRequestStatus];
+
+export const UpdateBookingStatusRequestStatus = {
+  confirmed: "confirmed",
+  cancelled: "cancelled",
+} as const;
+
+export interface UpdateBookingStatusRequest {
+  status: UpdateBookingStatusRequestStatus;
+}
+
+export interface BookingError {
+  error: string;
+  detail?: string;
+}
+
+export type ListBookingsParams = {
+  status?: ListBookingsStatus;
+  date?: string;
+};
+
+export type ListBookingsStatus =
+  (typeof ListBookingsStatus)[keyof typeof ListBookingsStatus];
+
+export const ListBookingsStatus = {
+  pending: "pending",
+  confirmed: "confirmed",
+  cancelled: "cancelled",
+} as const;

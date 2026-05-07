@@ -119,11 +119,7 @@ function Home() {
   const [staffMode, setStaffMode] = useState(false);
   const [showPin, setShowPin] = useState(false);
 
-  const { statuses: tableStatuses, setStatuses: setTableStatuses, synced } = useTableStatuses();
-
-  const handleTableReserved = (tableId: string) => {
-    setTableStatuses(s => ({ ...s, [tableId]: "reserved" }));
-  };
+  const { statuses: tableStatuses, setStatuses: setTableStatuses } = useTableStatuses();
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-[#f5f5f0] selection:bg-[#c9a84c] selection:text-[#0a0a0a]">
@@ -161,7 +157,6 @@ function Home() {
         open={reserveOpen}
         onClose={() => setReserveOpen(false)}
         tableStatuses={tableStatuses}
-        onTableReserved={handleTableReserved}
       />
       <FoodBooking open={foodBookOpen} onClose={() => setFoodBookOpen(false)} />
 
