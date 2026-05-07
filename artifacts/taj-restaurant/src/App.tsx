@@ -3,7 +3,7 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { CalendarCheck, ShoppingBag, ShieldCheck, Wifi, WifiOff } from "lucide-react";
+import { CalendarCheck, ShoppingBag, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import NotFound from "@/pages/not-found";
 
@@ -135,23 +135,6 @@ function Home() {
           />
         )}
       </AnimatePresence>
-
-      {/* Sync status indicator */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] tracking-widest uppercase pointer-events-none"
-        style={{
-          background: synced ? "rgba(74,222,128,0.08)" : "rgba(251,146,60,0.08)",
-          border: synced ? "1px solid rgba(74,222,128,0.2)" : "1px solid rgba(251,146,60,0.2)",
-          color: synced ? "#4ade80" : "#fb923c",
-        }}
-      >
-        {synced
-          ? <><Wifi size={9} /> Live sync active</>
-          : <><WifiOff size={9} /> Connecting…</>
-        }
-      </motion.div>
 
       <Loader />
       <Navbar onReserve={() => setReserveOpen(true)} onFoodBook={() => setFoodBookOpen(true)} onStaffLogin={() => setShowPin(true)} />
