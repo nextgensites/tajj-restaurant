@@ -133,9 +133,23 @@ function Home() {
     localStorage.setItem("tajj-table-statuses", JSON.stringify(tableStatuses));
   }, [tableStatuses]);
 
-  const occupiedIds = Object.entries(tableStatuses)
-    .filter(([, s]) => s === "occupied")
-    .map(([id]) => id);
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== "tajj-table-statuses" || !e.newValue) return;
+      try {
+        const parsed = JSON.parse(e.newValue);
+        setTableStatuses(Object.fromEntries(
+          ALL_TABLE_IDS.map(id => [id, parsed[id] ?? ("available" as TableStatus)])
+        ));
+      } catch {}
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const handleTableReserved = (tableId: string) => {
+    setTableStatuses(s => ({ ...s, [tableId]: "reserved" }));
+  };
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-[#f5f5f0] selection:bg-[#c9a84c] selection:text-[#0a0a0a]">
@@ -167,12 +181,13 @@ function Home() {
       <Gallery />
       <Reviews />
       <Contact />
-      <Footer onStaffLogin={() => setShowPin(true)} />
+      <Footer />
 
       <ReserveTable
         open={reserveOpen}
         onClose={() => setReserveOpen(false)}
-        occupiedTableIds={occupiedIds}
+        tableStatuses={tableStatuses}
+        onTableReserved={handleTableReserved}
       />
       <FoodBooking open={foodBookOpen} onClose={() => setFoodBookOpen(false)} />
 
