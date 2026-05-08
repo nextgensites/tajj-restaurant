@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, CalendarCheck, Clock, User, Phone, CheckCircle,
@@ -17,7 +17,8 @@ interface Props {
   open: boolean;
   onClose: () => void;
   tableStatuses: Record<string, TableStatus>;
-  reserveTable: (tableId: string) => Promise<"ok" | "taken" | "error">;
+  reserveTable: (tableId: string) => Promise<"ok" | "taken" | "occupied" | "error">;
+  refreshStatuses: () => Promise<void>;
 }
 
 type HallKey = "main" | "ac" | "jungle" | "majlis" | "red" | "new-majlis-family";
@@ -185,12 +186,20 @@ const timeSlots = [
 
 type Step = "hall" | "table" | "details" | "done";
 
-export default function ReserveTable({ open, onClose, tableStatuses, reserveTable }: Props) {
+export default function ReserveTable({ open, onClose, tableStatuses, reserveTable, refreshStatuses }: Props) {
   const [step, setStep] = useState<Step>("hall");
   const [selectedHall, setSelectedHall] = useState<Hall | null>(null);
   const [selectedTable, setSelectedTable] = useState<TableOption | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", date: "", time: "", guests: "", note: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setRefreshing(true);
+      refreshStatuses().finally(() => setRefreshing(false));
+    }
+  }, [open, refreshStatuses]);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -211,8 +220,12 @@ export default function ReserveTable({ open, onClose, tableStatuses, reserveTabl
     const result = await reserveTable(table.id);
     setSubmitting(false);
 
+    if (result === "occupied") {
+      setStep("table");
+      return;
+    }
+
     if (result === "taken") {
-      alert(`Sorry, ${table.label} in ${hall.name} was just taken by someone else. Please choose another table.`);
       setStep("table");
       return;
     }
@@ -301,7 +314,15 @@ export default function ReserveTable({ open, onClose, tableStatuses, reserveTabl
               </div>
             )}
 
-            <div className="overflow-y-auto flex-1 px-6 md:px-8 py-6">
+            <div className="overflow-y-auto flex-1 px-6 md:px-8 py-6 relative">
+              {refreshing && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0f0f0f]/80 backdrop-blur-sm">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-6 h-6 border-2 border-[#c9a84c]/30 border-t-[#c9a84c] rounded-full animate-spin" />
+                    <p className="text-[10px] tracking-[0.3em] text-[#c9a84c]/60 uppercase">Checking availability…</p>
+                  </div>
+                </div>
+              )}
               <AnimatePresence mode="wait">
 
                 {step === "hall" && (
