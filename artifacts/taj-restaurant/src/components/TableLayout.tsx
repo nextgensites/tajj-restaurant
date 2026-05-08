@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Users, Wind, Leaf, Moon, Flame, Info, X, ShieldCheck,
-  Unlock, CheckCircle, RotateCcw, UserCheck, Phone, Calendar, Clock
+  Unlock, CheckCircle, RotateCcw, UserCheck, Phone, Calendar, Clock, MessageCircle
 } from "lucide-react";
 import type { TableStatus } from "@/App";
 import type { BookingInfo } from "@/hooks/useTableStatuses";
@@ -223,7 +223,18 @@ export default function TableLayout({ staffMode, onExitStaffMode, statuses, book
                   <div className="mt-2 p-3 rounded-sm text-xs space-y-1" style={{ background: "rgba(127,0,0,0.15)", border: "1px solid rgba(127,0,0,0.3)" }}>
                     <p className="text-[#fca5a5] font-semibold">{bookings[actionTable.id].name}</p>
                     <p className="text-[#f5f5f0]/50">{bookings[actionTable.id].time} · {bookings[actionTable.id].date} · {bookings[actionTable.id].guests} guests</p>
-                    <p className="text-[#f5f5f0]/40">{bookings[actionTable.id].phone}</p>
+                    <div className="flex gap-2 mt-1">
+                      <a href={`https://wa.me/${bookings[actionTable.id].phone.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[9px] tracking-wide px-2 py-0.5 rounded-full"
+                        style={{ background: "rgba(37,211,102,0.15)", color: "#25d366", border: "1px solid rgba(37,211,102,0.3)" }}>
+                        <MessageCircle size={9} /> {bookings[actionTable.id].phone}
+                      </a>
+                      <a href={`tel:${bookings[actionTable.id].phone.replace(/\s/g,"")}`}
+                        className="flex items-center gap-1 text-[9px] tracking-wide px-2 py-0.5 rounded-full"
+                        style={{ background: "rgba(96,165,250,0.1)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.2)" }}>
+                        <Phone size={9} /> Call
+                      </a>
+                    </div>
                   </div>
                 )}
               </div>
@@ -438,15 +449,24 @@ export default function TableLayout({ staffMode, onExitStaffMode, statuses, book
                               <span className="flex items-center gap-1"><Clock size={10} />{r.time}</span>
                               <span className="flex items-center gap-1"><Calendar size={10} />{r.date}</span>
                               <span className="flex items-center gap-1"><Users size={10} />{r.guests} guests</span>
-                              <span className="flex items-center gap-1"><Phone size={10} />{r.phone}</span>
                             </div>
-                            <div className="flex gap-2 flex-shrink-0">
+                            <div className="flex gap-2 flex-shrink-0 flex-wrap items-center">
+                              <a href={`https://wa.me/${r.phone.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-[8px] tracking-[0.2em] uppercase font-bold rounded-full transition-all hover:scale-105"
+                                style={{ background: "rgba(37,211,102,0.12)", border: "1px solid rgba(37,211,102,0.3)", color: "#25d366" }}>
+                                <MessageCircle size={10} /> WhatsApp
+                              </a>
+                              <a href={`tel:${r.phone.replace(/\s/g,"")}`}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-[8px] tracking-[0.2em] uppercase font-bold rounded-full transition-all hover:scale-105"
+                                style={{ background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.25)", color: "#60a5fa" }}>
+                                <Phone size={10} /> Call
+                              </a>
                               <span className="px-2 py-0.5 text-[8px] tracking-[0.2em] uppercase font-bold rounded-full"
                                 style={{ background: isReserved ? "rgba(127,0,0,0.4)" : "rgba(124,69,0,0.4)", color: isReserved ? "#fca5a5" : "#fed7aa" }}>
                                 {r.status}
                               </span>
                               <button onClick={() => freeTable(r.tableId)}
-                                className="px-3 py-0.5 text-[8px] tracking-[0.2em] uppercase font-bold rounded-full transition-all hover:scale-105"
+                                className="px-3 py-1.5 text-[8px] tracking-[0.2em] uppercase font-bold rounded-full transition-all hover:scale-105"
                                 style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", color: "#4ade80" }}>
                                 Free
                               </button>
