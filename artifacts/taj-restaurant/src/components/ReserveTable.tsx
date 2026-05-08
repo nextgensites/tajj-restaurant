@@ -2,23 +2,22 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, CalendarCheck, Clock, User, Phone, CheckCircle,
-  ChevronLeft, Users, Wind, Leaf, Moon, Flame, AlertCircle, Loader2, MessageCircle
+  ChevronLeft, Users, Wind, Leaf, Moon, Flame
 } from "lucide-react";
 import type { TableStatus } from "@/App";
 import mainHallImg from "../assets/main-hall.jpg";
 import acHallImg from "../assets/ac-hall.jpg";
+import majlisHallImg from "../assets/majlis-hall.jpg";
 import majlisHall2Img from "../assets/majlis-hall-2.jpg";
 import redRoomImg from "../assets/red-room.jpg";
 import newMajlisFamilyImg from "../assets/new-majlis-family.jpg";
 import jungleHallImg from "../assets/jungle-hall.jpg";
-import { createBooking } from "@workspace/api-client-react";
-import { fetchSingleTableStatus } from "@/hooks/useTableStatuses";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   tableStatuses: Record<string, TableStatus>;
-  onBookingSuccess?: () => void;
+  reserveTable: (tableId: string) => Promise<"ok" | "taken" | "error">;
 }
 
 type HallKey = "main" | "ac" | "jungle" | "majlis" | "red" | "new-majlis-family";
@@ -186,28 +185,12 @@ const timeSlots = [
 
 type Step = "hall" | "table" | "details" | "done";
 
-interface BookingSummary {
-  hallName: string;
-  sectionName: string;
-  tableLabel: string;
-  tableSeats: number;
-  tableSpecial?: string;
-  name: string;
-  phone: string;
-  date: string;
-  time: string;
-  guests: string;
-  note: string;
-}
-
-export default function ReserveTable({ open, onClose, tableStatuses, onBookingSuccess }: Props) {
+export default function ReserveTable({ open, onClose, tableStatuses, reserveTable }: Props) {
   const [step, setStep] = useState<Step>("hall");
   const [selectedHall, setSelectedHall] = useState<Hall | null>(null);
   const [selectedTable, setSelectedTable] = useState<TableOption | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", date: "", time: "", guests: "", note: "" });
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<BookingSummary | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -216,8 +199,6 @@ export default function ReserveTable({ open, onClose, tableStatuses, onBookingSu
     setSelectedHall(null);
     setSelectedTable(null);
     setForm({ name: "", phone: "", date: "", time: "", guests: "", note: "" });
-    setSubmitError(null);
-    setSummary(null);
     onClose();
   };
 
@@ -227,41 +208,19 @@ export default function ReserveTable({ open, onClose, tableStatuses, onBookingSu
     const table = selectedTable!;
 
     setSubmitting(true);
-    setSubmitError(null);
-
-    const currentStatus = await fetchSingleTableStatus(table.id);
-    if (currentStatus === "occupied") {
-      setSubmitting(false);
-      setSubmitError(`${table.label} in ${hall.name} is currently occupied. Please go back and choose a different table.`);
-      return;
-    }
-    if (currentStatus === "reserved") {
-      setSubmitting(false);
-      setSubmitError(`${table.label} in ${hall.name} has already been reserved by someone else. Please go back and choose a different table.`);
-      return;
-    }
-
-    try {
-      await createBooking({
-        tableId: table.id,
-        hallName: hall.name,
-        tableName: table.label,
-        customerName: form.name,
-        customerPhone: form.phone,
-        reservationDate: form.date,
-        reservationTime: form.time,
-        guestCount: parseInt(form.guests, 10),
-        specialRequest: form.note || null,
-      });
-    } catch (err: unknown) {
-      setSubmitting(false);
-      const errData = (err as { data?: { detail?: string; error?: string } })?.data;
-      const detail = errData?.detail ?? errData?.error ?? "Something went wrong. Please try again.";
-      setSubmitError(detail);
-      return;
-    }
-
+    const result = await reserveTable(table.id);
     setSubmitting(false);
+
+    if (result === "taken") {
+      alert(`Sorry, ${table.label} in ${hall.name} was just taken by someone else. Please choose another table.`);
+      setStep("table");
+      return;
+    }
+
+    if (result === "error") {
+      alert("Could not save your reservation — please check your connection and try again.");
+      return;
+    }
 
     const sectionName = (() => {
       for (const sec of hall.sections) {
@@ -270,44 +229,22 @@ export default function ReserveTable({ open, onClose, tableStatuses, onBookingSu
       return hall.name;
     })();
 
-    const bookingSummary: BookingSummary = {
-      hallName: hall.name,
-      sectionName,
-      tableLabel: table.label,
-      tableSeats: table.seats,
-      tableSpecial: table.special,
-      name: form.name,
-      phone: form.phone,
-      date: form.date,
-      time: form.time,
-      guests: form.guests,
-      note: form.note,
-    };
-
-    setSummary(bookingSummary);
-    setStep("done");
-
-    onBookingSuccess?.();
-
-    window.open(buildWhatsAppUrl(bookingSummary), "_blank");
-  };
-
-  const buildWhatsAppUrl = (s: BookingSummary) => {
     const msg = encodeURIComponent(
       `*New Table Reservation — Tajj Restaurant (Shahid)*\n\n` +
-      `*Hall:* ${s.hallName}\n` +
-      `*Section:* ${s.sectionName}\n` +
-      `*Table:* ${s.tableLabel}${s.tableSpecial ? ` (${s.tableSpecial})` : ""}\n` +
-      `*Seats:* ${s.tableSeats}\n\n` +
-      `*Guest Name:* ${s.name}\n` +
-      `*Phone:* ${s.phone}\n` +
-      `*Date:* ${s.date}\n` +
-      `*Time:* ${s.time}\n` +
-      `*No. of Guests:* ${s.guests}\n` +
-      (s.note ? `*Special Request:* ${s.note}\n` : "") +
+      `*Hall:* ${hall.name}\n` +
+      `*Section:* ${sectionName}\n` +
+      `*Table:* ${table.label}${table.special ? ` (${table.special})` : ""}\n` +
+      `*Seats:* ${table.seats}\n\n` +
+      `*Guest Name:* ${form.name}\n` +
+      `*Phone:* ${form.phone}\n` +
+      `*Date:* ${form.date}\n` +
+      `*Time:* ${form.time}\n` +
+      `*No. of Guests:* ${form.guests}\n` +
+      (form.note ? `*Special Request:* ${form.note}\n` : "") +
       `\nPlease confirm the reservation. Thank you!`
     );
-    return `https://wa.me/918880918007?text=${msg}`;
+    window.open(`https://wa.me/918880918007?text=${msg}`, "_blank");
+    setStep("done");
   };
 
   const stepIndex = { hall: 0, table: 1, details: 2, done: 3 };
@@ -444,6 +381,7 @@ export default function ReserveTable({ open, onClose, tableStatuses, onBookingSu
                       </div>
                     </div>
 
+                    {/* Legend */}
                     <div className="flex flex-wrap gap-3 mb-4 text-[9px] tracking-wide text-[#f5f5f0]/40">
                       <div className="flex items-center gap-1.5">
                         <div className="w-3 h-3 rounded-sm border border-[#c9a84c]/30 bg-white/5" />
@@ -468,9 +406,9 @@ export default function ReserveTable({ open, onClose, tableStatuses, onBookingSu
                           {sec.tables.map(table => {
                             const isSelected = selectedTable?.id === table.id;
                             const tableStatus = tableStatuses[table.id] ?? "available";
-                            const isBlocked = tableStatus === "occupied" || tableStatus === "reserved";
                             const isReserved = tableStatus === "reserved";
                             const isOccupied = tableStatus === "occupied";
+                            const isBlocked = isReserved || isOccupied;
 
                             return (
                               <button
@@ -481,7 +419,7 @@ export default function ReserveTable({ open, onClose, tableStatuses, onBookingSu
                                   isOccupied
                                     ? "border-[#7c4500]/50 bg-[#7c4500]/10 cursor-not-allowed opacity-70"
                                     : isReserved
-                                      ? "border-[#7f0000]/50 bg-[#7f0000]/10 cursor-not-allowed opacity-70"
+                                      ? "border-[#7f0000]/60 bg-[#7f0000]/10 cursor-not-allowed opacity-70"
                                       : isSelected
                                         ? "border-[#c9a84c] bg-[#c9a84c]/10 shadow-[0_0_12px_rgba(201,168,76,0.25)]"
                                         : "border-[#c9a84c]/15 bg-white/[0.02] hover:border-[#c9a84c]/40"
@@ -508,7 +446,7 @@ export default function ReserveTable({ open, onClose, tableStatuses, onBookingSu
                                   {table.label}
                                 </span>
                                 <span className={`text-[9px] flex items-center gap-0.5 ${
-                                  isBlocked ? "text-[#fb923c]/35" : "text-[#f5f5f0]/35"
+                                  isOccupied ? "text-[#fb923c]/35" : isReserved ? "text-[#fca5a5]/35" : "text-[#f5f5f0]/35"
                                 }`}>
                                   <Users size={9} />
                                   {table.seats}
@@ -532,7 +470,7 @@ export default function ReserveTable({ open, onClose, tableStatuses, onBookingSu
 
                 {step === "details" && selectedHall && selectedTable && (
                   <motion.div key="details" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                    <button onClick={() => { setStep("table"); setSubmitError(null); }} className="flex items-center gap-1.5 text-[10px] tracking-[0.2em] text-[#c9a84c]/50 uppercase mb-5 hover:text-[#c9a84c] transition-colors">
+                    <button onClick={() => setStep("table")} className="flex items-center gap-1.5 text-[10px] tracking-[0.2em] text-[#c9a84c]/50 uppercase mb-5 hover:text-[#c9a84c] transition-colors">
                       <ChevronLeft size={13} /> Back
                     </button>
 
@@ -555,13 +493,6 @@ export default function ReserveTable({ open, onClose, tableStatuses, onBookingSu
                         <p className="text-sm text-[#f5f5f0] font-serif mt-0.5">{selectedTable.seats} Seats</p>
                       </div>
                     </div>
-
-                    {submitError && (
-                      <div className="flex items-start gap-3 p-4 mb-5 border border-[#ef4444]/30 bg-[#ef4444]/[0.06] text-[#fca5a5]">
-                        <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                        <p className="text-xs leading-relaxed">{submitError}</p>
-                      </div>
-                    )}
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                       <div className="relative">
@@ -595,105 +526,79 @@ export default function ReserveTable({ open, onClose, tableStatuses, onBookingSu
                           />
                         </div>
                         <div className="relative">
-                          <Clock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#c9a84c]/50 pointer-events-none z-10" />
-                          <select
-                            value={form.time}
-                            onChange={e => setForm(f => ({ ...f, time: e.target.value }))}
-                            required
-                            className="w-full bg-[#0f0f0f] border border-[#c9a84c]/20 text-[#f5f5f0] pl-9 pr-3 py-3 text-sm focus:outline-none focus:border-[#c9a84c]/60 transition-colors appearance-none"
-                          >
-                            <option value="" disabled>Time</option>
-                            {timeSlots.map(t => <option key={t} value={t}>{t}</option>)}
-                          </select>
+                          <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#c9a84c]/50 pointer-events-none" />
+                          <input
+                            value={form.guests}
+                            onChange={e => setForm(f => ({ ...f, guests: e.target.value }))}
+                            required placeholder={`Guests (max ${selectedTable.seats})`}
+                            type="number" min="1" max={selectedTable.seats}
+                            className="w-full bg-white/[0.03] border border-[#c9a84c]/20 text-[#f5f5f0] pl-9 pr-3 py-3 text-sm placeholder-[#f5f5f0]/25 focus:outline-none focus:border-[#c9a84c]/60 transition-colors"
+                          />
                         </div>
                       </div>
 
-                      <div className="relative">
-                        <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#c9a84c]/50 pointer-events-none" />
-                        <input
-                          value={form.guests}
-                          onChange={e => setForm(f => ({ ...f, guests: e.target.value }))}
-                          required type="number" min="1" max={selectedTable.seats} placeholder={`No. of Guests (max ${selectedTable.seats})`}
-                          className="w-full bg-white/[0.03] border border-[#c9a84c]/20 text-[#f5f5f0] pl-9 pr-4 py-3 text-sm placeholder-[#f5f5f0]/25 focus:outline-none focus:border-[#c9a84c]/60 transition-colors"
-                        />
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <Clock size={13} className="text-[#c9a84c]/50" />
+                          <span className="text-[10px] tracking-[0.25em] text-[#f5f5f0]/35 uppercase">Preferred Time</span>
+                        </div>
+                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                          {timeSlots.map(slot => (
+                            <button
+                              key={slot}
+                              type="button"
+                              onClick={() => setForm(f => ({ ...f, time: slot }))}
+                              className={`py-2 text-[10px] tracking-wide border transition-all duration-200 ${
+                                form.time === slot
+                                  ? "bg-[#c9a84c] text-[#0a0a0a] border-[#c9a84c] font-bold"
+                                  : "bg-white/[0.02] border-[#c9a84c]/15 text-[#f5f5f0]/55 hover:border-[#c9a84c]/40 hover:text-[#c9a84c]"
+                              }`}
+                            >
+                              {slot}
+                            </button>
+                          ))}
+                        </div>
                       </div>
 
                       <textarea
                         value={form.note}
                         onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
-                        placeholder="Special requests (optional)"
+                        placeholder="Special request (optional) — cake, decor, dietary needs..."
                         rows={2}
                         className="w-full bg-white/[0.03] border border-[#c9a84c]/20 text-[#f5f5f0] px-4 py-3 text-sm placeholder-[#f5f5f0]/25 focus:outline-none focus:border-[#c9a84c]/60 transition-colors resize-none"
                       />
 
                       <button
                         type="submit"
-                        disabled={submitting}
-                        className="w-full py-3.5 bg-[#c9a84c] text-[#0a0a0a] text-xs tracking-[0.25em] uppercase font-bold hover:bg-[#f0c040] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        disabled={!form.time || submitting}
+                        className="w-full py-3 bg-[#c9a84c] text-[#0a0a0a] text-xs tracking-[0.25em] uppercase font-bold hover:bg-[#f0c040] hover:shadow-[0_0_24px_rgba(201,168,76,0.5)] transition-all duration-300 disabled:opacity-35 disabled:cursor-not-allowed"
                       >
-                        {submitting ? (
-                          <><Loader2 size={15} className="animate-spin" /> Confirming Reservation…</>
-                        ) : (
-                          "Confirm Reservation"
-                        )}
+                        {submitting ? "Locking Table…" : "Confirm Reservation via WhatsApp"}
                       </button>
                     </form>
                   </motion.div>
                 )}
 
-                {step === "done" && summary && (
-                  <motion.div key="done" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-6">
-                    <div className="flex justify-center mb-5">
-                      <div className="w-16 h-16 rounded-full flex items-center justify-center"
-                        style={{ background: "rgba(201,168,76,0.08)", border: "1px solid rgba(201,168,76,0.25)" }}>
-                        <CheckCircle size={32} className="text-[#c9a84c]" />
-                      </div>
+                {step === "done" && (
+                  <motion.div
+                    key="done"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col items-center text-center py-10 gap-4"
+                  >
+                    <div className="w-16 h-16 rounded-full border border-[#c9a84c]/40 flex items-center justify-center">
+                      <CheckCircle size={36} className="text-[#c9a84c]" />
                     </div>
-
-                    <h3 className="font-serif text-2xl text-[#c9a84c] mb-2">Reservation Confirmed!</h3>
-                    <p className="text-[#f5f5f0]/50 text-xs tracking-wide mb-6">
-                      Your table has been reserved. Send your booking details to the restaurant via WhatsApp to complete confirmation.
+                    <h3 className="text-2xl font-serif text-[#f5f5f0]">Reservation Sent!</h3>
+                    <p className="text-[#f5f5f0]/50 text-sm leading-relaxed max-w-xs">
+                      Your table request for <span className="text-[#c9a84c]">{selectedHall?.name} — {selectedTable?.label}</span> has been sent via WhatsApp.
+                      The table is now marked as <span className="text-[#fca5a5]">Reserved</span> and cannot be booked by others until staff releases it.
                     </p>
-
-                    <div className="text-left p-4 border border-[#c9a84c]/15 bg-[#c9a84c]/[0.03] mb-6 space-y-2">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-[#f5f5f0]/40">Hall</span>
-                        <span className="text-[#f5f5f0]">{summary.hallName}</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-[#f5f5f0]/40">Table</span>
-                        <span className="text-[#f5f5f0]">{summary.tableLabel}{summary.tableSpecial ? ` (${summary.tableSpecial})` : ""}</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-[#f5f5f0]/40">Date &amp; Time</span>
-                        <span className="text-[#f5f5f0]">{summary.date} · {summary.time}</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-[#f5f5f0]/40">Guests</span>
-                        <span className="text-[#f5f5f0]">{summary.guests}</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-[#f5f5f0]/40">Name</span>
-                        <span className="text-[#f5f5f0]">{summary.name}</span>
-                      </div>
-                    </div>
-
-                    <a
-                      href={buildWhatsAppUrl(summary)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 w-full py-3.5 mb-3 text-xs tracking-[0.2em] uppercase font-bold transition-all duration-300"
-                      style={{ background: "#25D366", color: "#fff" }}
-                    >
-                      <MessageCircle size={16} />
-                      Send via WhatsApp
-                    </a>
-
                     <button
                       onClick={handleClose}
-                      className="w-full py-3 border border-[#c9a84c]/20 text-[#f5f5f0]/40 text-xs tracking-[0.2em] uppercase hover:border-[#c9a84c]/40 hover:text-[#c9a84c] transition-all duration-200"
+                      className="mt-4 px-10 py-3 bg-[#c9a84c] text-[#0a0a0a] text-xs tracking-[0.25em] uppercase font-bold hover:bg-[#f0c040] transition-colors"
                     >
-                      Close
+                      Done
                     </button>
                   </motion.div>
                 )}
