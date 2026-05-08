@@ -29,7 +29,15 @@ app.use(
     },
   }),
 );
-app.use(cors());
+app.use(cors({
+  origin: [
+    "https://nextgensites.github.io",
+    /\.replit\.dev$/,
+    /\.replit\.app$/,
+    /^http:\/\/localhost:\d+$/,
+  ],
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
