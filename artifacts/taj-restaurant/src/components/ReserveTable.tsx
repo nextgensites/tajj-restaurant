@@ -5,6 +5,7 @@ import {
   ChevronLeft, Users, Wind, Leaf, Moon, Flame
 } from "lucide-react";
 import type { TableStatus } from "@/App";
+import type { BookingInfo } from "@/hooks/useTableStatuses";
 import mainHallImg from "../assets/main-hall.jpg";
 import acHallImg from "../assets/ac-hall.jpg";
 import majlisHallImg from "../assets/majlis-hall.jpg";
@@ -17,7 +18,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   tableStatuses: Record<string, TableStatus>;
-  reserveTable: (tableId: string) => Promise<"ok" | "taken" | "occupied" | "error">;
+  reserveTable: (tableId: string, bookingInfo: BookingInfo) => Promise<"ok" | "taken" | "occupied" | "error">;
   refreshStatuses: () => Promise<void>;
 }
 
@@ -217,7 +218,16 @@ export default function ReserveTable({ open, onClose, tableStatuses, reserveTabl
     const table = selectedTable!;
 
     setSubmitting(true);
-    const result = await reserveTable(table.id);
+    const result = await reserveTable(table.id, {
+      name: form.name,
+      phone: form.phone,
+      hall: hall.name,
+      table: table.label,
+      time: form.time,
+      date: form.date,
+      guests: form.guests,
+      bookedAt: new Date().toISOString(),
+    });
     setSubmitting(false);
 
     if (result === "occupied") {
