@@ -1,34 +1,39 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { TableStatus } from "@/App";
 import { ALL_TABLE_IDS } from "@/App";
 
-const POLL_INTERVAL = 3000;
+const BLOB_ID = "019e0367-c8d8-76f1-a46d-a8455f9463bd";
+const BLOB_URL = `https://jsonblob.com/api/jsonBlob/${BLOB_ID}`;
+const POLL_INTERVAL = 8000;
+const LS_KEY = "tajj-table-statuses";
 
 function defaultStatuses(): Record<string, TableStatus> {
   return Object.fromEntries(ALL_TABLE_IDS.map(id => [id, "available" as TableStatus]));
 }
 
-function apiBase(): string {
-  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
-  return base.replace(/\/+$/, "");
+function parseStatuses(raw: Record<string, string>): Record<string, TableStatus> {
+  return Object.fromEntries(
+    ALL_TABLE_IDS.map(id => [id, (raw[id] as TableStatus) ?? "available"])
+  );
 }
 
-async function fetchStatuses(): Promise<Record<string, TableStatus> | null> {
+async function fetchFromCloud(): Promise<Record<string, TableStatus> | null> {
   try {
-    const res = await fetch(`${apiBase()}/api/tables/statuses`);
+    const res = await fetch(BLOB_URL, { headers: { Accept: "application/json" } });
     if (!res.ok) return null;
-    return await res.json() as Record<string, TableStatus>;
+    const data = await res.json();
+    return parseStatuses(data);
   } catch {
     return null;
   }
 }
 
-async function patchTableStatus(tableId: string, status: "available" | "occupied"): Promise<boolean> {
+async function saveToCloud(statuses: Record<string, TableStatus>): Promise<boolean> {
   try {
-    const res = await fetch(`${apiBase()}/api/tables/${encodeURIComponent(tableId)}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+    const res = await fetch(BLOB_URL, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(statuses),
     });
     return res.ok;
   } catch {
@@ -36,68 +41,107 @@ async function patchTableStatus(tableId: string, status: "available" | "occupied
   }
 }
 
-async function bulkPatchStatuses(statuses: Record<string, "available" | "occupied">): Promise<boolean> {
+function loadFromLocal(): Record<string, TableStatus> {
   try {
-    const res = await fetch(`${apiBase()}/api/tables/statuses/bulk`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ statuses }),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
+    const saved = localStorage.getItem(LS_KEY);
+    if (saved) return parseStatuses(JSON.parse(saved));
+  } catch {}
+  return defaultStatuses();
 }
 
-export async function fetchSingleTableStatus(tableId: string): Promise<TableStatus | null> {
+function saveToLocal(statuses: Record<string, TableStatus>) {
   try {
-    const res = await fetch(`${apiBase()}/api/tables/statuses`);
-    if (!res.ok) return null;
-    const data = await res.json() as Record<string, TableStatus>;
-    return data[tableId] ?? "available";
-  } catch {
-    return null;
-  }
+    localStorage.setItem(LS_KEY, JSON.stringify(statuses));
+  } catch {}
 }
 
 export function useTableStatuses() {
-  const [statuses, setStatusesState] = useState<Record<string, TableStatus>>(defaultStatuses);
+  const [statuses, setStatusesState] = useState<Record<string, TableStatus>>(loadFromLocal);
+  const [synced, setSynced] = useState(false);
+  const isWriting = useRef(false);
+  const latestStatuses = useRef<Record<string, TableStatus>>(statuses);
 
-  const refresh = useCallback(async () => {
-    const data = await fetchStatuses();
-    if (data) setStatusesState(data);
+  useEffect(() => {
+    latestStatuses.current = statuses;
+  }, [statuses]);
+
+  const applyStatuses = useCallback((next: Record<string, TableStatus>) => {
+    setStatusesState(next);
+    saveToLocal(next);
+    latestStatuses.current = next;
   }, []);
 
   useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, POLL_INTERVAL);
-    return () => clearInterval(id);
-  }, [refresh]);
+    let cancelled = false;
 
-  const toggleTable = useCallback(async (tableId: string) => {
-    setStatusesState(prev => {
-      const cur = prev[tableId] ?? "available";
-      const next: TableStatus = cur === "available" ? "occupied" : "available";
-      patchTableStatus(tableId, next).then(ok => {
-        if (!ok) refresh();
+    const poll = async () => {
+      if (isWriting.current) return;
+      const cloud = await fetchFromCloud();
+      if (!cancelled && cloud && !isWriting.current) {
+        applyStatuses(cloud);
+        setSynced(true);
+      }
+    };
+
+    poll();
+    const id = setInterval(poll, POLL_INTERVAL);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [applyStatuses]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== LS_KEY || !e.newValue) return;
+      try {
+        const parsed = parseStatuses(JSON.parse(e.newValue));
+        setStatusesState(parsed);
+        latestStatuses.current = parsed;
+      } catch {}
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const setStatuses = useCallback(
+    (updater: Record<string, TableStatus> | ((prev: Record<string, TableStatus>) => Record<string, TableStatus>)) => {
+      setStatusesState(prev => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        saveToLocal(next);
+        latestStatuses.current = next;
+        isWriting.current = true;
+        saveToCloud(next).finally(() => {
+          isWriting.current = false;
+        });
+        return next;
       });
-      return { ...prev, [tableId]: next };
-    });
-  }, [refresh]);
+    },
+    []
+  );
 
-  const resetAll = useCallback(async () => {
-    const next = Object.fromEntries(ALL_TABLE_IDS.map(id => [id, "available" as const]));
-    setStatusesState(prev => ({ ...prev, ...next }));
-    const ok = await bulkPatchStatuses(next);
-    if (!ok) refresh();
-  }, [refresh]);
+  const reserveTable = useCallback(async (tableId: string): Promise<"ok" | "taken" | "error"> => {
+    isWriting.current = true;
+    try {
+      const cloudState = await fetchFromCloud();
+      const base = cloudState ?? latestStatuses.current;
 
-  const occupyAll = useCallback(async () => {
-    const next = Object.fromEntries(ALL_TABLE_IDS.map(id => [id, "occupied" as const]));
-    setStatusesState(prev => ({ ...prev, ...next }));
-    const ok = await bulkPatchStatuses(next);
-    if (!ok) refresh();
-  }, [refresh]);
+      if (base[tableId] === "reserved" || base[tableId] === "occupied") {
+        applyStatuses(base);
+        return "taken";
+      }
 
-  return { statuses, toggleTable, resetAll, occupyAll, refresh };
+      const next = { ...base, [tableId]: "reserved" as TableStatus };
+      applyStatuses(next);
+
+      const ok = await saveToCloud(next);
+      if (!ok) return "error";
+
+      return "ok";
+    } finally {
+      isWriting.current = false;
+    }
+  }, [applyStatuses]);
+
+  return { statuses, setStatuses, reserveTable, synced };
 }
