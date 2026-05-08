@@ -219,6 +219,8 @@ export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
     onClose();
   };
 
+  const isGitHubPages = import.meta.env.VITE_GITHUB_PAGES === "true";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const hall = selectedHall!;
@@ -227,24 +229,26 @@ export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
     setSubmitting(true);
     setSubmitError(null);
 
-    try {
-      await createBooking({
-        tableId: table.id,
-        hallName: hall.name,
-        tableName: table.label,
-        customerName: form.name,
-        customerPhone: form.phone,
-        reservationDate: form.date,
-        reservationTime: form.time,
-        guestCount: parseInt(form.guests, 10),
-        specialRequest: form.note || null,
-      });
-    } catch (err: unknown) {
-      setSubmitting(false);
-      const errData = (err as { data?: { detail?: string; error?: string } })?.data;
-      const detail = errData?.detail ?? errData?.error ?? "Something went wrong. Please try again.";
-      setSubmitError(detail);
-      return;
+    if (!isGitHubPages) {
+      try {
+        await createBooking({
+          tableId: table.id,
+          hallName: hall.name,
+          tableName: table.label,
+          customerName: form.name,
+          customerPhone: form.phone,
+          reservationDate: form.date,
+          reservationTime: form.time,
+          guestCount: parseInt(form.guests, 10),
+          specialRequest: form.note || null,
+        });
+      } catch (err: unknown) {
+        setSubmitting(false);
+        const errData = (err as { data?: { detail?: string; error?: string } })?.data;
+        const detail = errData?.detail ?? errData?.error ?? "Something went wrong. Please try again.";
+        setSubmitError(detail);
+        return;
+      }
     }
 
     setSubmitting(false);
@@ -256,7 +260,7 @@ export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
       return hall.name;
     })();
 
-    setSummary({
+    const bookingSummary: BookingSummary = {
       hallName: hall.name,
       sectionName,
       tableLabel: table.label,
@@ -268,8 +272,12 @@ export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
       time: form.time,
       guests: form.guests,
       note: form.note,
-    });
+    };
+
+    setSummary(bookingSummary);
     setStep("done");
+
+    window.open(buildWhatsAppUrl(bookingSummary), "_blank");
   };
 
   const buildWhatsAppUrl = (s: BookingSummary) => {

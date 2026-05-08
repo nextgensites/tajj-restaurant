@@ -8,6 +8,9 @@ const base = repoName ? `/${repoName}/` : "/";
 
 export default defineConfig({
   base,
+  define: {
+    "import.meta.env.VITE_GITHUB_PAGES": JSON.stringify("true"),
+  },
   plugins: [
     react(),
     tailwindcss(),
