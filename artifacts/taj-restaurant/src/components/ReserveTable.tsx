@@ -12,6 +12,7 @@ import redRoomImg from "../assets/red-room.jpg";
 import newMajlisFamilyImg from "../assets/new-majlis-family.jpg";
 import jungleHallImg from "../assets/jungle-hall.jpg";
 import { createBooking } from "@workspace/api-client-react";
+import { fetchSingleTableStatus } from "@/hooks/useTableStatuses";
 
 interface Props {
   open: boolean;
@@ -220,8 +221,6 @@ export default function ReserveTable({ open, onClose, tableStatuses, onBookingSu
     onClose();
   };
 
-  const isGitHubPages = import.meta.env.VITE_GITHUB_PAGES === "true";
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const hall = selectedHall!;
@@ -230,26 +229,36 @@ export default function ReserveTable({ open, onClose, tableStatuses, onBookingSu
     setSubmitting(true);
     setSubmitError(null);
 
-    if (!isGitHubPages) {
-      try {
-        await createBooking({
-          tableId: table.id,
-          hallName: hall.name,
-          tableName: table.label,
-          customerName: form.name,
-          customerPhone: form.phone,
-          reservationDate: form.date,
-          reservationTime: form.time,
-          guestCount: parseInt(form.guests, 10),
-          specialRequest: form.note || null,
-        });
-      } catch (err: unknown) {
-        setSubmitting(false);
-        const errData = (err as { data?: { detail?: string; error?: string } })?.data;
-        const detail = errData?.detail ?? errData?.error ?? "Something went wrong. Please try again.";
-        setSubmitError(detail);
-        return;
-      }
+    const currentStatus = await fetchSingleTableStatus(table.id);
+    if (currentStatus === "occupied") {
+      setSubmitting(false);
+      setSubmitError(`${table.label} in ${hall.name} is currently occupied. Please go back and choose a different table.`);
+      return;
+    }
+    if (currentStatus === "reserved") {
+      setSubmitting(false);
+      setSubmitError(`${table.label} in ${hall.name} has already been reserved by someone else. Please go back and choose a different table.`);
+      return;
+    }
+
+    try {
+      await createBooking({
+        tableId: table.id,
+        hallName: hall.name,
+        tableName: table.label,
+        customerName: form.name,
+        customerPhone: form.phone,
+        reservationDate: form.date,
+        reservationTime: form.time,
+        guestCount: parseInt(form.guests, 10),
+        specialRequest: form.note || null,
+      });
+    } catch (err: unknown) {
+      setSubmitting(false);
+      const errData = (err as { data?: { detail?: string; error?: string } })?.data;
+      const detail = errData?.detail ?? errData?.error ?? "Something went wrong. Please try again.";
+      setSubmitError(detail);
+      return;
     }
 
     setSubmitting(false);
