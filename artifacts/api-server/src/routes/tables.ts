@@ -12,44 +12,37 @@ const bulkUpdateSchema = z.object({
   statuses: z.record(z.string(), z.enum(["available", "occupied"])),
 });
 
-// GET /tables/statuses — returns computed status for every table
-// Priority: staff "occupied" override > active reservation ("reserved") > "available"
-router.get("/tables/statuses", async (_req, res) => {
-  const [staffRows, reservationRows] = await Promise.all([
-    pool.query<{ table_id: string; status: string }>(
-      `SELECT table_id, status FROM table_statuses`,
-    ),
-    pool.query<{ table_id: string }>(
-      `SELECT DISTINCT table_id FROM reservations
-       WHERE status != 'cancelled'
-         AND reservation_date >= CURRENT_DATE::text`,
-    ),
-  ]);
+const allKnownIds = [
+  "main-1","main-2","main-3","main-4","main-5","main-6","main-7","main-8","main-9",
+  "ac-friends-1","ac-friends-2",
+  "ac-family-1","ac-family-2","ac-family-3",
+  "jungle-1","jungle-2","jungle-3","jungle-4","jungle-5",
+  "majlis-1","majlis-2","majlis-3","majlis-couple-4","majlis-5","majlis-6",
+  "red-room-1","red-room-2","red-room-3","red-room-4",
+  "new-majlis-family-1","new-majlis-family-2","new-majlis-family-3",
+  "new-majlis-family-4","new-majlis-family-5",
+];
 
-  const staffMap: Record<string, string> = {};
-  for (const row of staffRows.rows) {
-    staffMap[row.table_id] = row.status;
+// GET /tables/statuses — returns the status for every table.
+// Priority: staff "occupied" > customer "reserved" > "available".
+// "reserved" is written to table_statuses atomically when a booking is created,
+// so this is a single fast lookup — no scan of the reservations table needed.
+router.get("/tables/statuses", async (_req, res) => {
+  const { rows } = await pool.query<{ table_id: string; status: string }>(
+    `SELECT table_id, status FROM table_statuses`,
+  );
+
+  const statusMap: Record<string, string> = {};
+  for (const row of rows) {
+    statusMap[row.table_id] = row.status;
   }
 
-  const reservedSet = new Set(reservationRows.rows.map(r => r.table_id));
-
   const result: Record<string, "available" | "reserved" | "occupied"> = {};
-
-  const allKnownIds = [
-    "main-1","main-2","main-3","main-4","main-5","main-6","main-7","main-8","main-9",
-    "ac-friends-1","ac-friends-2",
-    "ac-family-1","ac-family-2","ac-family-3",
-    "jungle-1","jungle-2","jungle-3","jungle-4","jungle-5",
-    "majlis-1","majlis-2","majlis-3","majlis-couple-4","majlis-5","majlis-6",
-    "red-room-1","red-room-2","red-room-3","red-room-4",
-    "new-majlis-family-1","new-majlis-family-2","new-majlis-family-3",
-    "new-majlis-family-4","new-majlis-family-5",
-  ];
-
   for (const id of allKnownIds) {
-    if (staffMap[id] === "occupied") {
+    const s = statusMap[id];
+    if (s === "occupied") {
       result[id] = "occupied";
-    } else if (reservedSet.has(id)) {
+    } else if (s === "reserved") {
       result[id] = "reserved";
     } else {
       result[id] = "available";
@@ -59,8 +52,9 @@ router.get("/tables/statuses", async (_req, res) => {
   res.json(result);
 });
 
-// PATCH /tables/:id/status — staff sets a table available or occupied
-// Setting to "available" also cancels all active future reservations for that table
+// PATCH /tables/:id/status — staff sets a table to "available" or "occupied".
+// Setting to "available" unlocks the table and cancels all active reservations.
+// Setting to "occupied" overrides any reservation (staff manages the floor).
 router.patch("/tables/:id/status", async (req, res) => {
   const tableId = req.params["id"];
   if (!tableId) {
@@ -88,12 +82,12 @@ router.patch("/tables/:id/status", async (req, res) => {
     );
 
     if (status === "available") {
+      // Cancel all active reservations so the table is fully unlocked.
       await client.query(
         `UPDATE reservations
          SET status = 'cancelled'
          WHERE table_id = $1
-           AND status != 'cancelled'
-           AND reservation_date >= CURRENT_DATE::text`,
+           AND status != 'cancelled'`,
         [tableId],
       );
     }
@@ -108,7 +102,7 @@ router.patch("/tables/:id/status", async (req, res) => {
   }
 });
 
-// POST /tables/statuses/bulk — bulk update for staff "reset all" / "mark all occupied"
+// POST /tables/statuses/bulk — bulk update for staff "reset all" / "mark all occupied".
 router.post("/tables/statuses/bulk", async (req, res) => {
   const parsed = bulkUpdateSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -138,8 +132,7 @@ router.post("/tables/statuses/bulk", async (req, res) => {
           `UPDATE reservations
            SET status = 'cancelled'
            WHERE table_id = $1
-             AND status != 'cancelled'
-             AND reservation_date >= CURRENT_DATE::text`,
+             AND status != 'cancelled'`,
           [tableId],
         );
       }

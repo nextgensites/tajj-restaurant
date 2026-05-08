@@ -36,10 +36,8 @@ router.post("/bookings", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Advisory lock keyed on tableId ONLY — this serialises ALL concurrent
-    // booking attempts for the same table regardless of date/time, so the
-    // anyExisting check below always runs sequentially and can never be
-    // bypassed by two customers picking different time slots simultaneously.
+    // Advisory lock keyed on tableId only — serialises ALL concurrent booking
+    // attempts for this table regardless of date/time.
     const lockResult = await client.query<{ acquired: boolean }>(
       `SELECT pg_try_advisory_xact_lock(hashtext($1), hashtext('reservation')) AS acquired`,
       [tableId],
@@ -54,12 +52,16 @@ router.post("/bookings", async (req, res) => {
       return;
     }
 
-    // Check if the table is staff-marked as occupied
-    const staffStatus = await client.query<{ status: string }>(
+    // Single status check covers both staff-occupied AND already-reserved.
+    // table_statuses is written atomically in the same transaction when a
+    // booking succeeds, so this is the definitive source of truth.
+    const statusRow = await client.query<{ status: string }>(
       `SELECT status FROM table_statuses WHERE table_id = $1`,
       [tableId],
     );
-    if (staffStatus.rows[0]?.status === "occupied") {
+    const currentStatus = statusRow.rows[0]?.status;
+
+    if (currentStatus === "occupied") {
       await client.query("ROLLBACK");
       res.status(409).json({
         error: "Table unavailable",
@@ -68,17 +70,7 @@ router.post("/bookings", async (req, res) => {
       return;
     }
 
-    // Check if ANY active (non-cancelled, today or future) reservation exists for this table.
-    // Once a table is booked it is locked for all other customers until staff unlocks it.
-    const anyExisting = await client.query(
-      `SELECT id FROM reservations
-       WHERE table_id = $1
-         AND status != 'cancelled'
-         AND reservation_date >= CURRENT_DATE::text`,
-      [tableId],
-    );
-
-    if (anyExisting.rows.length > 0) {
+    if (currentStatus === "reserved") {
       await client.query("ROLLBACK");
       res.status(409).json({
         error: "Table already reserved",
@@ -87,6 +79,7 @@ router.post("/bookings", async (req, res) => {
       return;
     }
 
+    // Insert the reservation record.
     const result = await client.query(
       `INSERT INTO reservations
          (table_id, hall_name, table_name, customer_name, customer_phone,
@@ -96,6 +89,37 @@ router.post("/bookings", async (req, res) => {
       [tableId, hallName, tableName, customerName, customerPhone,
        reservationDate, reservationTime, guestCount, specialRequest ?? null],
     );
+
+    // Lock the table immediately in the same transaction.
+    // This is the authoritative lock — table_id is a primary key so a second
+    // concurrent booking that slipped past the advisory lock will hit a
+    // unique-violation here and be rejected.
+    await client.query(
+      `INSERT INTO table_statuses (table_id, status, updated_at)
+       VALUES ($1, 'reserved', NOW())
+       ON CONFLICT (table_id) DO UPDATE
+         SET status = 'reserved', updated_at = NOW()
+         WHERE table_statuses.status NOT IN ('occupied', 'reserved')`,
+      [tableId],
+    );
+
+    // If the upsert didn't change any row it means the table was already
+    // occupied or reserved (race between the check above and now).
+    const locked = await client.query<{ status: string }>(
+      `SELECT status FROM table_statuses WHERE table_id = $1`,
+      [tableId],
+    );
+    const lockedStatus = locked.rows[0]?.status;
+    if (lockedStatus !== "reserved") {
+      await client.query("ROLLBACK");
+      res.status(409).json({
+        error: lockedStatus === "occupied" ? "Table unavailable" : "Table already reserved",
+        detail: lockedStatus === "occupied"
+          ? `${tableName} in ${hallName} is currently occupied.`
+          : `${tableName} in ${hallName} was just reserved by someone else. Please choose a different table.`,
+      });
+      return;
+    }
 
     await client.query("COMMIT");
 
