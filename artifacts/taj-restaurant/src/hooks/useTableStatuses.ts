@@ -8,9 +8,14 @@ function defaultStatuses(): Record<string, TableStatus> {
   return Object.fromEntries(ALL_TABLE_IDS.map(id => [id, "available" as TableStatus]));
 }
 
+function apiBase(): string {
+  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+  return base.replace(/\/+$/, "");
+}
+
 async function fetchStatuses(): Promise<Record<string, TableStatus> | null> {
   try {
-    const res = await fetch("/api/tables/statuses");
+    const res = await fetch(`${apiBase()}/api/tables/statuses`);
     if (!res.ok) return null;
     return await res.json() as Record<string, TableStatus>;
   } catch {
@@ -20,7 +25,7 @@ async function fetchStatuses(): Promise<Record<string, TableStatus> | null> {
 
 async function patchTableStatus(tableId: string, status: "available" | "occupied"): Promise<boolean> {
   try {
-    const res = await fetch(`/api/tables/${encodeURIComponent(tableId)}/status`, {
+    const res = await fetch(`${apiBase()}/api/tables/${encodeURIComponent(tableId)}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -33,7 +38,7 @@ async function patchTableStatus(tableId: string, status: "available" | "occupied
 
 async function bulkPatchStatuses(statuses: Record<string, "available" | "occupied">): Promise<boolean> {
   try {
-    const res = await fetch("/api/tables/statuses/bulk", {
+    const res = await fetch(`${apiBase()}/api/tables/statuses/bulk`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ statuses }),
@@ -41,6 +46,17 @@ async function bulkPatchStatuses(statuses: Record<string, "available" | "occupie
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+export async function fetchSingleTableStatus(tableId: string): Promise<TableStatus | null> {
+  try {
+    const res = await fetch(`${apiBase()}/api/tables/statuses`);
+    if (!res.ok) return null;
+    const data = await res.json() as Record<string, TableStatus>;
+    return data[tableId] ?? "available";
+  } catch {
+    return null;
   }
 }
 
