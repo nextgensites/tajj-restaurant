@@ -19,10 +19,15 @@ import type {
 import type {
   Booking,
   BookingError,
+  BulkUpdateStatusRequest,
+  BulkUpdateTableStatuses200,
   CreateBookingRequest,
   HealthStatus,
   ListBookingsParams,
+  TableStatusEntry,
+  TableStatusMap,
   UpdateBookingStatusRequest,
+  UpdateTableStatusRequest,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -111,7 +116,7 @@ export function useHealthCheck<
 }
 
 /**
- * Creates a reservation using a PostgreSQL advisory lock to prevent concurrent double-bookings for the same table, date, and time slot.
+ * Creates a reservation using a PostgreSQL advisory lock to prevent concurrent double-bookings. A table with any active future reservation is fully locked until staff unlocks it.
  * @summary Create a table reservation
  */
 export const getCreateBookingUrl = () => {
@@ -379,4 +384,259 @@ export const useUpdateBookingStatus = <
   TContext
 > => {
   return useMutation(getUpdateBookingStatusMutationOptions(options));
+};
+
+/**
+ * Returns computed status for every table. Priority is staff override (occupied) > active booking (reserved) > available. Polls every few seconds for real-time updates.
+ * @summary Get all table statuses
+ */
+export const getGetTableStatusesUrl = () => {
+  return `/api/tables/statuses`;
+};
+
+export const getTableStatuses = async (
+  options?: RequestInit,
+): Promise<TableStatusMap> => {
+  return customFetch<TableStatusMap>(getGetTableStatusesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTableStatusesQueryKey = () => {
+  return [`/api/tables/statuses`] as const;
+};
+
+export const getGetTableStatusesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTableStatuses>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getTableStatuses>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTableStatusesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTableStatuses>>
+  > = ({ signal }) => getTableStatuses({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTableStatuses>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTableStatusesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTableStatuses>>
+>;
+export type GetTableStatusesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get all table statuses
+ */
+
+export function useGetTableStatuses<
+  TData = Awaited<ReturnType<typeof getTableStatuses>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getTableStatuses>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTableStatusesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Sets multiple tables to available or occupied at once. Setting a table to available also cancels its active future reservations.
+ * @summary Bulk update table statuses (staff only)
+ */
+export const getBulkUpdateTableStatusesUrl = () => {
+  return `/api/tables/statuses/bulk`;
+};
+
+export const bulkUpdateTableStatuses = async (
+  bulkUpdateStatusRequest: BulkUpdateStatusRequest,
+  options?: RequestInit,
+): Promise<BulkUpdateTableStatuses200> => {
+  return customFetch<BulkUpdateTableStatuses200>(
+    getBulkUpdateTableStatusesUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(bulkUpdateStatusRequest),
+    },
+  );
+};
+
+export const getBulkUpdateTableStatusesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkUpdateTableStatuses>>,
+    TError,
+    { data: BodyType<BulkUpdateStatusRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bulkUpdateTableStatuses>>,
+  TError,
+  { data: BodyType<BulkUpdateStatusRequest> },
+  TContext
+> => {
+  const mutationKey = ["bulkUpdateTableStatuses"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bulkUpdateTableStatuses>>,
+    { data: BodyType<BulkUpdateStatusRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return bulkUpdateTableStatuses(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BulkUpdateTableStatusesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bulkUpdateTableStatuses>>
+>;
+export type BulkUpdateTableStatusesMutationBody =
+  BodyType<BulkUpdateStatusRequest>;
+export type BulkUpdateTableStatusesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Bulk update table statuses (staff only)
+ */
+export const useBulkUpdateTableStatuses = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkUpdateTableStatuses>>,
+    TError,
+    { data: BodyType<BulkUpdateStatusRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bulkUpdateTableStatuses>>,
+  TError,
+  { data: BodyType<BulkUpdateStatusRequest> },
+  TContext
+> => {
+  return useMutation(getBulkUpdateTableStatusesMutationOptions(options));
+};
+
+/**
+ * Staff sets a table to available or occupied. Setting to available also cancels active future reservations for that table.
+ * @summary Update a single table status (staff only)
+ */
+export const getUpdateTableStatusUrl = (id: string) => {
+  return `/api/tables/${id}/status`;
+};
+
+export const updateTableStatus = async (
+  id: string,
+  updateTableStatusRequest: UpdateTableStatusRequest,
+  options?: RequestInit,
+): Promise<TableStatusEntry> => {
+  return customFetch<TableStatusEntry>(getUpdateTableStatusUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateTableStatusRequest),
+  });
+};
+
+export const getUpdateTableStatusMutationOptions = <
+  TError = ErrorType<BookingError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTableStatus>>,
+    TError,
+    { id: string; data: BodyType<UpdateTableStatusRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateTableStatus>>,
+  TError,
+  { id: string; data: BodyType<UpdateTableStatusRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateTableStatus"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateTableStatus>>,
+    { id: string; data: BodyType<UpdateTableStatusRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateTableStatus(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateTableStatusMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateTableStatus>>
+>;
+export type UpdateTableStatusMutationBody = BodyType<UpdateTableStatusRequest>;
+export type UpdateTableStatusMutationError = ErrorType<BookingError>;
+
+/**
+ * @summary Update a single table status (staff only)
+ */
+export const useUpdateTableStatus = <
+  TError = ErrorType<BookingError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTableStatus>>,
+    TError,
+    { id: string; data: BodyType<UpdateTableStatusRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateTableStatus>>,
+  TError,
+  { id: string; data: BodyType<UpdateTableStatusRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateTableStatusMutationOptions(options));
 };

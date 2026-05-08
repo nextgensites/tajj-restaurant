@@ -36,10 +36,8 @@ router.post("/bookings", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Acquire a PostgreSQL advisory transaction lock scoped to this
-    // (table, date, time) combination. Two concurrent requests for the
-    // same slot will race here — the second one gets false and is
-    // immediately rejected without waiting, preventing double-booking.
+    // Advisory lock prevents two simultaneous requests for the same table
+    // from both passing the checks below.
     const lockKey1 = `${tableId}::${reservationDate}`;
     const lockKey2 = reservationTime;
     const lockResult = await client.query<{ acquired: boolean }>(
@@ -56,23 +54,35 @@ router.post("/bookings", async (req, res) => {
       return;
     }
 
-    // Check whether an active (non-cancelled) reservation already exists
-    // for this exact slot. The unique index on the table also guards this,
-    // but the explicit check gives us a clear error message.
-    const existing = await client.query(
-      `SELECT id FROM reservations
-       WHERE table_id = $1
-         AND reservation_date = $2
-         AND reservation_time = $3
-         AND status != 'cancelled'`,
-      [tableId, reservationDate, reservationTime],
+    // Check if the table is staff-marked as occupied
+    const staffStatus = await client.query<{ status: string }>(
+      `SELECT status FROM table_statuses WHERE table_id = $1`,
+      [tableId],
     );
-
-    if (existing.rows.length > 0) {
+    if (staffStatus.rows[0]?.status === "occupied") {
       await client.query("ROLLBACK");
       res.status(409).json({
-        error: "Table already booked",
-        detail: `${tableName} in ${hallName} is already reserved for ${reservationDate} at ${reservationTime}. Please choose a different table or time.`,
+        error: "Table unavailable",
+        detail: `${tableName} in ${hallName} is currently occupied. Please choose a different table.`,
+      });
+      return;
+    }
+
+    // Check if ANY active (non-cancelled, today or future) reservation exists for this table.
+    // Once a table is booked it is locked for all other customers until staff unlocks it.
+    const anyExisting = await client.query(
+      `SELECT id FROM reservations
+       WHERE table_id = $1
+         AND status != 'cancelled'
+         AND reservation_date >= CURRENT_DATE::text`,
+      [tableId],
+    );
+
+    if (anyExisting.rows.length > 0) {
+      await client.query("ROLLBACK");
+      res.status(409).json({
+        error: "Table already reserved",
+        detail: `${tableName} in ${hallName} has already been reserved. Please choose a different table or contact the restaurant.`,
       });
       return;
     }
@@ -93,12 +103,10 @@ router.post("/bookings", async (req, res) => {
     res.status(201).json(mapRow(row));
   } catch (err: unknown) {
     await client.query("ROLLBACK");
-    // Unique constraint violation — extremely rare race that slips past the
-    // advisory lock (e.g. lock acquired on different DB connections).
     if (isUniqueViolation(err)) {
       res.status(409).json({
-        error: "Table already booked",
-        detail: "This slot was just taken by another booking. Please choose a different table or time.",
+        error: "Table already reserved",
+        detail: "This table was just taken by another booking. Please choose a different table.",
       });
       return;
     }

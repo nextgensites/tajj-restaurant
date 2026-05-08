@@ -159,7 +159,7 @@ function TableCell({
   const tooltipText =
     status === "available" ? "Tap to mark occupied" :
     status === "occupied"  ? "Tap to mark available" :
-    "Tap to free table";
+    "Tap to free table (cancels booking)";
 
   return (
     <motion.button
@@ -181,12 +181,12 @@ function TableCell({
         </span>
       )}
 
-      {status === "occupied" && (
+      {(status === "occupied" || status === "reserved") && (
         <motion.div
           className="absolute inset-0 rounded-sm pointer-events-none"
           animate={{ opacity: [0.3, 0.7, 0.3] }}
           transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
-          style={{ boxShadow: "0 0 0 2px rgba(251,146,60,0.5)" }}
+          style={{ boxShadow: status === "occupied" ? "0 0 0 2px rgba(251,146,60,0.5)" : "0 0 0 2px rgba(252,165,165,0.5)" }}
         />
       )}
 
@@ -211,26 +211,19 @@ interface Props {
   staffMode: boolean;
   onExitStaffMode: () => void;
   statuses: Record<string, TableStatus>;
-  setStatuses: React.Dispatch<React.SetStateAction<Record<string, TableStatus>>>;
+  toggleTable: (tableId: string) => void;
+  resetAll: () => void;
+  occupyAll: () => void;
 }
 
-export default function TableLayout({ staffMode, onExitStaffMode, statuses, setStatuses }: Props) {
+export default function TableLayout({ staffMode, onExitStaffMode, statuses, toggleTable, resetAll, occupyAll }: Props) {
   const [activeHall, setActiveHall] = useState(halls[0].key);
   const [legend, setLegend] = useState(false);
 
-  const toggle = (id: string) => {
-    setStatuses(s => {
-      const cur = s[id];
-      if (cur === "available") return { ...s, [id]: "occupied" };
-      if (cur === "occupied")  return { ...s, [id]: "available" };
-      return { ...s, [id]: "available" };
-    });
-  };
-
   const allIds = halls.flatMap(h => h.tables.map(t => t.id));
-  const available = allIds.filter(id => statuses[id] === "available").length;
-  const reserved  = allIds.filter(id => statuses[id] === "reserved").length;
-  const occupied  = allIds.filter(id => statuses[id] === "occupied").length;
+  const available = allIds.filter(id => (statuses[id] ?? "available") === "available").length;
+  const reserved  = allIds.filter(id => (statuses[id] ?? "available") === "reserved").length;
+  const occupied  = allIds.filter(id => (statuses[id] ?? "available") === "occupied").length;
 
   const currentHall = halls.find(h => h.key === activeHall)!;
   const maxRow = Math.max(...currentHall.tables.map(t => t.row));
@@ -247,7 +240,6 @@ export default function TableLayout({ staffMode, onExitStaffMode, statuses, setS
 
       <div className="container mx-auto px-6 relative z-10">
 
-        {/* Header */}
         <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }} className="text-center mb-12">
           <h2 className="text-sm tracking-[0.3em] mb-4 uppercase" style={{ color: "#f59e0b" }}>
@@ -255,7 +247,7 @@ export default function TableLayout({ staffMode, onExitStaffMode, statuses, setS
           </h2>
           <h3 className="text-4xl md:text-5xl font-serif text-[#c9a84c]">Floor Plan</h3>
           <p className="text-[#f5f5f0]/40 text-sm mt-4 max-w-md mx-auto">
-            Click any table to toggle between available and occupied. Changes reflect instantly in the customer booking flow.
+            Click any table to toggle between available and occupied. Reserved tables are booked by customers — tap to free them and cancel their booking.
           </p>
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
             className="inline-flex items-center gap-2 mt-4 px-4 py-1.5 rounded-full text-[10px] tracking-[0.25em] uppercase"
@@ -269,7 +261,6 @@ export default function TableLayout({ staffMode, onExitStaffMode, statuses, setS
           </motion.div>
         </motion.div>
 
-        {/* Stats bar */}
         <motion.div initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }} className="flex items-center justify-center gap-6 mb-10 flex-wrap">
           <div className="text-center">
@@ -293,7 +284,6 @@ export default function TableLayout({ staffMode, onExitStaffMode, statuses, setS
           </div>
         </motion.div>
 
-        {/* Hall tabs */}
         <div className="flex flex-wrap justify-center gap-2 mb-8">
           {halls.map(hall => (
             <button key={hall.key} onClick={() => setActiveHall(hall.key)}
@@ -311,7 +301,6 @@ export default function TableLayout({ staffMode, onExitStaffMode, statuses, setS
           ))}
         </div>
 
-        {/* Floor plan card */}
         <AnimatePresence mode="wait">
           <motion.div key={activeHall} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.28 }}
@@ -325,7 +314,6 @@ export default function TableLayout({ staffMode, onExitStaffMode, statuses, setS
               <div className="h-0.5 w-full"
                 style={{ background: "linear-gradient(90deg,transparent,#f59e0b,transparent)" }} />
 
-              {/* Hall header */}
               <div className="px-6 py-5 border-b flex items-center justify-between"
                 style={{ borderColor: "rgba(245,158,11,0.12)" }}>
                 <div className="flex items-center gap-3">
@@ -334,7 +322,7 @@ export default function TableLayout({ staffMode, onExitStaffMode, statuses, setS
                     <p className="font-serif text-lg" style={{ color: currentHall.accentColor }}>
                       {currentHall.name}
                     </p>
-                    <p className="text-[#f5f5f0]/35 text-xs mt-0.5">Staff controls active</p>
+                    <p className="text-[#f5f5f0]/35 text-xs mt-0.5">Staff controls active · live from cloud</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -351,7 +339,6 @@ export default function TableLayout({ staffMode, onExitStaffMode, statuses, setS
                 </div>
               </div>
 
-              {/* Legend */}
               <AnimatePresence>
                 {legend && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
@@ -364,18 +351,17 @@ export default function TableLayout({ staffMode, onExitStaffMode, statuses, setS
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-5 h-4 rounded-sm" style={{ background: "linear-gradient(135deg,#7f0000,#b00000)", border: "1.5px solid rgba(200,0,0,0.7)" }} />
-                        <span>Reserved — customer booking</span>
+                        <span>Reserved — customer booking (tap to free)</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-5 h-4 rounded-sm" style={{ background: "linear-gradient(135deg,#7c4500,#b56500)", border: "1.5px solid rgba(200,120,0,0.7)" }} />
-                        <span>Occupied — disabled in booking flow</span>
+                        <span>Occupied — manually set by staff</span>
                       </div>
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Tables */}
               <div className="p-8">
                 <div className="flex justify-center mb-6">
                   <div className="px-8 py-1.5 text-[9px] tracking-[0.4em] uppercase"
@@ -396,14 +382,13 @@ export default function TableLayout({ staffMode, onExitStaffMode, statuses, setS
                           table={table}
                           status={statuses[table.id] ?? "available"}
                           accentColor={currentHall.accentColor}
-                          onToggle={() => toggle(table.id)}
+                          onToggle={() => toggleTable(table.id)}
                         />
                       ))}
                     </div>
                   ))}
                 </div>
 
-                {/* Per-hall stats footer */}
                 <div className="mt-8 pt-5 border-t flex items-center justify-between text-xs"
                   style={{ borderColor: `${currentHall.accentColor}12` }}>
                   <div className="flex items-center gap-4 flex-wrap">
@@ -425,16 +410,15 @@ export default function TableLayout({ staffMode, onExitStaffMode, statuses, setS
           </motion.div>
         </AnimatePresence>
 
-        {/* Bottom action buttons */}
         <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
           className="flex justify-center mt-8 gap-3 flex-wrap">
           <button
-            onClick={() => setStatuses(s => Object.fromEntries(Object.keys(s).map(id => [id, "available" as TableStatus])))}
+            onClick={resetAll}
             className="px-6 py-2.5 text-[10px] tracking-[0.25em] uppercase border border-[#c9a84c]/20 text-[#f5f5f0]/35 hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all duration-200">
             Reset All Tables
           </button>
           <button
-            onClick={() => setStatuses(s => Object.fromEntries(Object.keys(s).map(id => [id, "occupied" as TableStatus])))}
+            onClick={occupyAll}
             className="px-6 py-2.5 text-[10px] tracking-[0.25em] uppercase border border-[#7c4500]/30 text-[#f5f5f0]/35 hover:border-[#b56500]/60 hover:text-[#fb923c] transition-all duration-200">
             Mark All Occupied
           </button>

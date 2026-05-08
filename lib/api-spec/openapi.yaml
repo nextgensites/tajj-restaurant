@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: bookings
     description: Table reservation operations
+  - name: tables
+    description: Table status operations
 paths:
   /healthz:
     get:
@@ -32,7 +34,7 @@ paths:
       operationId: createBooking
       tags: [bookings]
       summary: Create a table reservation
-      description: Creates a reservation using a PostgreSQL advisory lock to prevent concurrent double-bookings for the same table, date, and time slot.
+      description: Creates a reservation using a PostgreSQL advisory lock to prevent concurrent double-bookings. A table with any active future reservation is fully locked until staff unlocks it.
       requestBody:
         required: true
         content:
@@ -47,7 +49,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Booking"
         "409":
-          description: Table already reserved for this date and time
+          description: Table already reserved or occupied
           content:
             application/json:
               schema:
@@ -112,6 +114,76 @@ paths:
                 $ref: "#/components/schemas/Booking"
         "404":
           description: Reservation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingError"
+
+  /tables/statuses:
+    get:
+      operationId: getTableStatuses
+      tags: [tables]
+      summary: Get all table statuses
+      description: Returns computed status for every table. Priority is staff override (occupied) > active booking (reserved) > available. Polls every few seconds for real-time updates.
+      responses:
+        "200":
+          description: Map of table ID to status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TableStatusMap"
+
+  /tables/statuses/bulk:
+    post:
+      operationId: bulkUpdateTableStatuses
+      tags: [tables]
+      summary: Bulk update table statuses (staff only)
+      description: Sets multiple tables to available or occupied at once. Setting a table to available also cancels its active future reservations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkUpdateStatusRequest"
+      responses:
+        "200":
+          description: Number of tables updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated:
+                    type: integer
+                required: [updated]
+
+  /tables/{id}/status:
+    patch:
+      operationId: updateTableStatus
+      tags: [tables]
+      summary: Update a single table status (staff only)
+      description: Staff sets a table to available or occupied. Setting to available also cancels active future reservations for that table.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTableStatusRequest"
+      responses:
+        "200":
+          description: Updated table status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TableStatusEntry"
+        "422":
+          description: Validation error
           content:
             application/json:
               schema:
@@ -223,3 +295,41 @@ components:
           type: string
       required:
         - error
+
+    TableStatusMap:
+      type: object
+      additionalProperties:
+        type: string
+        enum: [available, reserved, occupied]
+
+    TableStatusEntry:
+      type: object
+      properties:
+        tableId:
+          type: string
+        status:
+          type: string
+          enum: [available, occupied]
+      required:
+        - tableId
+        - status
+
+    UpdateTableStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [available, occupied]
+      required:
+        - status
+
+    BulkUpdateStatusRequest:
+      type: object
+      properties:
+        statuses:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [available, occupied]
+      required:
+        - statuses

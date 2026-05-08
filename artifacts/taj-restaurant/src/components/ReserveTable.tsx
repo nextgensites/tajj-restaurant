@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, CalendarCheck, Clock, User, Phone, CheckCircle,
-  ChevronLeft, Users, Wind, Leaf, Moon, Flame, AlertCircle, Loader2
+  ChevronLeft, Users, Wind, Leaf, Moon, Flame, AlertCircle, Loader2, MessageCircle
 } from "lucide-react";
 import type { TableStatus } from "@/App";
 import mainHallImg from "../assets/main-hall.jpg";
@@ -184,6 +184,20 @@ const timeSlots = [
 
 type Step = "hall" | "table" | "details" | "done";
 
+interface BookingSummary {
+  hallName: string;
+  sectionName: string;
+  tableLabel: string;
+  tableSeats: number;
+  tableSpecial?: string;
+  name: string;
+  phone: string;
+  date: string;
+  time: string;
+  guests: string;
+  note: string;
+}
+
 export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
   const [step, setStep] = useState<Step>("hall");
   const [selectedHall, setSelectedHall] = useState<Hall | null>(null);
@@ -191,6 +205,7 @@ export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
   const [form, setForm] = useState({ name: "", phone: "", date: "", time: "", guests: "", note: "" });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<BookingSummary | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -200,6 +215,7 @@ export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
     setSelectedTable(null);
     setForm({ name: "", phone: "", date: "", time: "", guests: "", note: "" });
     setSubmitError(null);
+    setSummary(null);
     onClose();
   };
 
@@ -240,22 +256,38 @@ export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
       return hall.name;
     })();
 
+    setSummary({
+      hallName: hall.name,
+      sectionName,
+      tableLabel: table.label,
+      tableSeats: table.seats,
+      tableSpecial: table.special,
+      name: form.name,
+      phone: form.phone,
+      date: form.date,
+      time: form.time,
+      guests: form.guests,
+      note: form.note,
+    });
+    setStep("done");
+  };
+
+  const buildWhatsAppUrl = (s: BookingSummary) => {
     const msg = encodeURIComponent(
       `*New Table Reservation — Tajj Restaurant (Shahid)*\n\n` +
-      `*Hall:* ${hall.name}\n` +
-      `*Section:* ${sectionName}\n` +
-      `*Table:* ${table.label}${table.special ? ` (${table.special})` : ""}\n` +
-      `*Seats:* ${table.seats}\n\n` +
-      `*Guest Name:* ${form.name}\n` +
-      `*Phone:* ${form.phone}\n` +
-      `*Date:* ${form.date}\n` +
-      `*Time:* ${form.time}\n` +
-      `*No. of Guests:* ${form.guests}\n` +
-      (form.note ? `*Special Request:* ${form.note}\n` : "") +
+      `*Hall:* ${s.hallName}\n` +
+      `*Section:* ${s.sectionName}\n` +
+      `*Table:* ${s.tableLabel}${s.tableSpecial ? ` (${s.tableSpecial})` : ""}\n` +
+      `*Seats:* ${s.tableSeats}\n\n` +
+      `*Guest Name:* ${s.name}\n` +
+      `*Phone:* ${s.phone}\n` +
+      `*Date:* ${s.date}\n` +
+      `*Time:* ${s.time}\n` +
+      `*No. of Guests:* ${s.guests}\n` +
+      (s.note ? `*Special Request:* ${s.note}\n` : "") +
       `\nPlease confirm the reservation. Thank you!`
     );
-    window.open(`https://wa.me/918880918007?text=${msg}`, "_blank");
-    setStep("done");
+    return `https://wa.me/918880918007?text=${msg}`;
   };
 
   const stepIndex = { hall: 0, table: 1, details: 2, done: 3 };
@@ -398,6 +430,10 @@ export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
                         Available
                       </div>
                       <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded-sm" style={{ background: "linear-gradient(135deg,#7f0000,#b00000)" }} />
+                        Reserved
+                      </div>
+                      <div className="flex items-center gap-1.5">
                         <div className="w-3 h-3 rounded-sm" style={{ background: "linear-gradient(135deg,#7c4500,#b56500)" }} />
                         Occupied
                       </div>
@@ -412,8 +448,9 @@ export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
                           {sec.tables.map(table => {
                             const isSelected = selectedTable?.id === table.id;
                             const tableStatus = tableStatuses[table.id] ?? "available";
+                            const isBlocked = tableStatus === "occupied" || tableStatus === "reserved";
+                            const isReserved = tableStatus === "reserved";
                             const isOccupied = tableStatus === "occupied";
-                            const isBlocked = isOccupied;
 
                             return (
                               <button
@@ -423,14 +460,21 @@ export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
                                 className={`relative flex flex-col items-center justify-center p-3 border transition-all duration-200 text-center ${
                                   isOccupied
                                     ? "border-[#7c4500]/50 bg-[#7c4500]/10 cursor-not-allowed opacity-70"
-                                    : isSelected
-                                      ? "border-[#c9a84c] bg-[#c9a84c]/10 shadow-[0_0_12px_rgba(201,168,76,0.25)]"
-                                      : "border-[#c9a84c]/15 bg-white/[0.02] hover:border-[#c9a84c]/40"
+                                    : isReserved
+                                      ? "border-[#7f0000]/50 bg-[#7f0000]/10 cursor-not-allowed opacity-70"
+                                      : isSelected
+                                        ? "border-[#c9a84c] bg-[#c9a84c]/10 shadow-[0_0_12px_rgba(201,168,76,0.25)]"
+                                        : "border-[#c9a84c]/15 bg-white/[0.02] hover:border-[#c9a84c]/40"
                                 }`}
                               >
                                 {isOccupied && (
                                   <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-[#7c4500] text-[#fed7aa] text-[8px] px-1.5 py-0.5 tracking-wide whitespace-nowrap">
                                     Occupied
+                                  </span>
+                                )}
+                                {isReserved && (
+                                  <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-[#7f0000] text-[#fca5a5] text-[8px] px-1.5 py-0.5 tracking-wide whitespace-nowrap">
+                                    Reserved
                                   </span>
                                 )}
                                 {!isBlocked && table.special && (
@@ -439,12 +483,12 @@ export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
                                   </span>
                                 )}
                                 <span className={`font-serif text-sm mb-1 ${
-                                  isOccupied ? "text-[#fb923c]/50" : isSelected ? "text-[#c9a84c]" : "text-[#f5f5f0]"
+                                  isOccupied ? "text-[#fb923c]/50" : isReserved ? "text-[#fca5a5]/50" : isSelected ? "text-[#c9a84c]" : "text-[#f5f5f0]"
                                 }`}>
                                   {table.label}
                                 </span>
                                 <span className={`text-[9px] flex items-center gap-0.5 ${
-                                  isOccupied ? "text-[#fb923c]/35" : "text-[#f5f5f0]/35"
+                                  isBlocked ? "text-[#fb923c]/35" : "text-[#f5f5f0]/35"
                                 }`}>
                                   <Users size={9} />
                                   {table.seats}
@@ -531,85 +575,105 @@ export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
                           />
                         </div>
                         <div className="relative">
-                          <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#c9a84c]/50 pointer-events-none" />
-                          <input
-                            value={form.guests}
-                            onChange={e => setForm(f => ({ ...f, guests: e.target.value }))}
-                            required placeholder={`Guests (max ${selectedTable.seats})`}
-                            type="number" min="1" max={selectedTable.seats}
-                            className="w-full bg-white/[0.03] border border-[#c9a84c]/20 text-[#f5f5f0] pl-9 pr-3 py-3 text-sm placeholder-[#f5f5f0]/25 focus:outline-none focus:border-[#c9a84c]/60 transition-colors"
-                          />
+                          <Clock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#c9a84c]/50 pointer-events-none z-10" />
+                          <select
+                            value={form.time}
+                            onChange={e => setForm(f => ({ ...f, time: e.target.value }))}
+                            required
+                            className="w-full bg-[#0f0f0f] border border-[#c9a84c]/20 text-[#f5f5f0] pl-9 pr-3 py-3 text-sm focus:outline-none focus:border-[#c9a84c]/60 transition-colors appearance-none"
+                          >
+                            <option value="" disabled>Time</option>
+                            {timeSlots.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
                         </div>
                       </div>
 
-                      <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <Clock size={13} className="text-[#c9a84c]/50" />
-                          <span className="text-[10px] tracking-[0.25em] text-[#f5f5f0]/35 uppercase">Preferred Time</span>
-                        </div>
-                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                          {timeSlots.map(slot => (
-                            <button
-                              key={slot}
-                              type="button"
-                              onClick={() => setForm(f => ({ ...f, time: slot }))}
-                              className={`py-2 text-[10px] tracking-wide border transition-all duration-200 ${
-                                form.time === slot
-                                  ? "bg-[#c9a84c] text-[#0a0a0a] border-[#c9a84c] font-bold"
-                                  : "bg-white/[0.02] border-[#c9a84c]/15 text-[#f5f5f0]/55 hover:border-[#c9a84c]/40 hover:text-[#c9a84c]"
-                              }`}
-                            >
-                              {slot}
-                            </button>
-                          ))}
-                        </div>
+                      <div className="relative">
+                        <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#c9a84c]/50 pointer-events-none" />
+                        <input
+                          value={form.guests}
+                          onChange={e => setForm(f => ({ ...f, guests: e.target.value }))}
+                          required type="number" min="1" max={selectedTable.seats} placeholder={`No. of Guests (max ${selectedTable.seats})`}
+                          className="w-full bg-white/[0.03] border border-[#c9a84c]/20 text-[#f5f5f0] pl-9 pr-4 py-3 text-sm placeholder-[#f5f5f0]/25 focus:outline-none focus:border-[#c9a84c]/60 transition-colors"
+                        />
                       </div>
 
                       <textarea
                         value={form.note}
                         onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
-                        placeholder="Special request (optional) — cake, decor, dietary needs..."
+                        placeholder="Special requests (optional)"
                         rows={2}
                         className="w-full bg-white/[0.03] border border-[#c9a84c]/20 text-[#f5f5f0] px-4 py-3 text-sm placeholder-[#f5f5f0]/25 focus:outline-none focus:border-[#c9a84c]/60 transition-colors resize-none"
                       />
 
                       <button
                         type="submit"
-                        disabled={!form.time || submitting}
-                        className="w-full py-3 bg-[#c9a84c] text-[#0a0a0a] text-xs tracking-[0.25em] uppercase font-bold hover:bg-[#f0c040] hover:shadow-[0_0_24px_rgba(201,168,76,0.5)] transition-all duration-300 disabled:opacity-35 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        disabled={submitting}
+                        className="w-full py-3.5 bg-[#c9a84c] text-[#0a0a0a] text-xs tracking-[0.25em] uppercase font-bold hover:bg-[#f0c040] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         {submitting ? (
-                          <>
-                            <Loader2 size={14} className="animate-spin" />
-                            Saving Reservation…
-                          </>
+                          <><Loader2 size={15} className="animate-spin" /> Confirming Reservation…</>
                         ) : (
-                          "Confirm Reservation via WhatsApp"
+                          "Confirm Reservation"
                         )}
                       </button>
                     </form>
                   </motion.div>
                 )}
 
-                {step === "done" && (
-                  <motion.div
-                    key="done"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex flex-col items-center text-center py-10 gap-4"
-                  >
-                    <div className="w-16 h-16 rounded-full border border-[#c9a84c]/40 flex items-center justify-center">
-                      <CheckCircle size={36} className="text-[#c9a84c]" />
+                {step === "done" && summary && (
+                  <motion.div key="done" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-6">
+                    <div className="flex justify-center mb-5">
+                      <div className="w-16 h-16 rounded-full flex items-center justify-center"
+                        style={{ background: "rgba(201,168,76,0.08)", border: "1px solid rgba(201,168,76,0.25)" }}>
+                        <CheckCircle size={32} className="text-[#c9a84c]" />
+                      </div>
                     </div>
-                    <h3 className="text-2xl font-serif text-[#f5f5f0]">Reservation Sent!</h3>
-                    <p className="text-[#f5f5f0]/50 text-sm leading-relaxed max-w-xs">
-                      Your table request for <span className="text-[#c9a84c]">{selectedHall?.name} — {selectedTable?.label}</span> has been saved and forwarded to the restaurant via WhatsApp. Our staff will confirm your booking shortly.
+
+                    <h3 className="font-serif text-2xl text-[#c9a84c] mb-2">Reservation Confirmed!</h3>
+                    <p className="text-[#f5f5f0]/50 text-xs tracking-wide mb-6">
+                      Your table has been reserved. Send your booking details to the restaurant via WhatsApp to complete confirmation.
                     </p>
+
+                    <div className="text-left p-4 border border-[#c9a84c]/15 bg-[#c9a84c]/[0.03] mb-6 space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-[#f5f5f0]/40">Hall</span>
+                        <span className="text-[#f5f5f0]">{summary.hallName}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-[#f5f5f0]/40">Table</span>
+                        <span className="text-[#f5f5f0]">{summary.tableLabel}{summary.tableSpecial ? ` (${summary.tableSpecial})` : ""}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-[#f5f5f0]/40">Date &amp; Time</span>
+                        <span className="text-[#f5f5f0]">{summary.date} · {summary.time}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-[#f5f5f0]/40">Guests</span>
+                        <span className="text-[#f5f5f0]">{summary.guests}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-[#f5f5f0]/40">Name</span>
+                        <span className="text-[#f5f5f0]">{summary.name}</span>
+                      </div>
+                    </div>
+
+                    <a
+                      href={buildWhatsAppUrl(summary)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full py-3.5 mb-3 text-xs tracking-[0.2em] uppercase font-bold transition-all duration-300"
+                      style={{ background: "#25D366", color: "#fff" }}
+                    >
+                      <MessageCircle size={16} />
+                      Send via WhatsApp
+                    </a>
+
                     <button
                       onClick={handleClose}
-                      className="mt-4 px-10 py-3 bg-[#c9a84c] text-[#0a0a0a] text-xs tracking-[0.25em] uppercase font-bold hover:bg-[#f0c040] transition-colors"
+                      className="w-full py-3 border border-[#c9a84c]/20 text-[#f5f5f0]/40 text-xs tracking-[0.2em] uppercase hover:border-[#c9a84c]/40 hover:text-[#c9a84c] transition-all duration-200"
                     >
-                      Done
+                      Close
                     </button>
                   </motion.div>
                 )}

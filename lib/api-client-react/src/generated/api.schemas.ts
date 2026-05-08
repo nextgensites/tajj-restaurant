@@ -64,6 +64,43 @@ export interface BookingError {
   detail?: string;
 }
 
+export interface TableStatusMap {
+  [key: string]: "available" | "reserved" | "occupied";
+}
+
+export type TableStatusEntryStatus =
+  (typeof TableStatusEntryStatus)[keyof typeof TableStatusEntryStatus];
+
+export const TableStatusEntryStatus = {
+  available: "available",
+  occupied: "occupied",
+} as const;
+
+export interface TableStatusEntry {
+  tableId: string;
+  status: TableStatusEntryStatus;
+}
+
+export type UpdateTableStatusRequestStatus =
+  (typeof UpdateTableStatusRequestStatus)[keyof typeof UpdateTableStatusRequestStatus];
+
+export const UpdateTableStatusRequestStatus = {
+  available: "available",
+  occupied: "occupied",
+} as const;
+
+export interface UpdateTableStatusRequest {
+  status: UpdateTableStatusRequestStatus;
+}
+
+export type BulkUpdateStatusRequestStatuses = {
+  [key: string]: "available" | "occupied";
+};
+
+export interface BulkUpdateStatusRequest {
+  statuses: BulkUpdateStatusRequestStatuses;
+}
+
 export type ListBookingsParams = {
   status?: ListBookingsStatus;
   date?: string;
@@ -77,3 +114,7 @@ export const ListBookingsStatus = {
   confirmed: "confirmed",
   cancelled: "cancelled",
 } as const;
+
+export type BulkUpdateTableStatuses200 = {
+  updated: number;
+};

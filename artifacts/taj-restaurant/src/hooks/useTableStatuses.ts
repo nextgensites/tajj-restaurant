@@ -1,41 +1,29 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { TableStatus } from "@/App";
 import { ALL_TABLE_IDS } from "@/App";
 
-const BLOB_ID = "019e0367-c8d8-76f1-a46d-a8455f9463bd";
-const BLOB_URL = `https://jsonblob.com/api/jsonBlob/${BLOB_ID}`;
-const POLL_INTERVAL = 8000;
-const LS_KEY = "tajj-table-statuses";
+const POLL_INTERVAL = 3000;
 
 function defaultStatuses(): Record<string, TableStatus> {
   return Object.fromEntries(ALL_TABLE_IDS.map(id => [id, "available" as TableStatus]));
 }
 
-function parseStatuses(raw: Record<string, string>): Record<string, TableStatus> {
-  return Object.fromEntries(
-    ALL_TABLE_IDS.map(id => [id, (raw[id] as TableStatus) ?? "available"])
-  );
-}
-
-async function fetchFromCloud(): Promise<Record<string, TableStatus> | null> {
+async function fetchStatuses(): Promise<Record<string, TableStatus> | null> {
   try {
-    const res = await fetch(BLOB_URL, {
-      headers: { Accept: "application/json" },
-    });
+    const res = await fetch("/api/tables/statuses");
     if (!res.ok) return null;
-    const data = await res.json();
-    return parseStatuses(data);
+    return await res.json() as Record<string, TableStatus>;
   } catch {
     return null;
   }
 }
 
-async function saveToCloud(statuses: Record<string, TableStatus>): Promise<boolean> {
+async function patchTableStatus(tableId: string, status: "available" | "occupied"): Promise<boolean> {
   try {
-    const res = await fetch(BLOB_URL, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(statuses),
+    const res = await fetch(`/api/tables/${encodeURIComponent(tableId)}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
     });
     return res.ok;
   } catch {
@@ -43,82 +31,57 @@ async function saveToCloud(statuses: Record<string, TableStatus>): Promise<boole
   }
 }
 
-function loadFromLocal(): Record<string, TableStatus> {
+async function bulkPatchStatuses(statuses: Record<string, "available" | "occupied">): Promise<boolean> {
   try {
-    const saved = localStorage.getItem(LS_KEY);
-    if (saved) return parseStatuses(JSON.parse(saved));
-  } catch {}
-  return defaultStatuses();
-}
-
-function saveToLocal(statuses: Record<string, TableStatus>) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(statuses));
-  } catch {}
+    const res = await fetch("/api/tables/statuses/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ statuses }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 export function useTableStatuses() {
-  const [statuses, setStatusesState] = useState<Record<string, TableStatus>>(loadFromLocal);
-  const [synced, setSynced] = useState(false);
-  const pendingWrite = useRef<Record<string, TableStatus> | null>(null);
-  const writeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [statuses, setStatusesState] = useState<Record<string, TableStatus>>(defaultStatuses);
 
-  const applyStatuses = useCallback((next: Record<string, TableStatus>) => {
-    setStatusesState(next);
-    saveToLocal(next);
+  const refresh = useCallback(async () => {
+    const data = await fetchStatuses();
+    if (data) setStatusesState(data);
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    refresh();
+    const id = setInterval(refresh, POLL_INTERVAL);
+    return () => clearInterval(id);
+  }, [refresh]);
 
-    const poll = async () => {
-      const cloud = await fetchFromCloud();
-      if (!cancelled && cloud) {
-        applyStatuses(cloud);
-        setSynced(true);
-      }
-    };
-
-    poll();
-    const id = setInterval(poll, POLL_INTERVAL);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [applyStatuses]);
-
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== LS_KEY || !e.newValue) return;
-      try {
-        setStatusesState(parseStatuses(JSON.parse(e.newValue)));
-      } catch {}
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
-  const setStatuses = useCallback(
-    (updater: Record<string, TableStatus> | ((prev: Record<string, TableStatus>) => Record<string, TableStatus>)) => {
-      setStatusesState(prev => {
-        const next = typeof updater === "function" ? updater(prev) : updater;
-        saveToLocal(next);
-
-        pendingWrite.current = next;
-        if (writeTimer.current) clearTimeout(writeTimer.current);
-        writeTimer.current = setTimeout(async () => {
-          const toWrite = pendingWrite.current;
-          if (toWrite) {
-            pendingWrite.current = null;
-            await saveToCloud(toWrite);
-          }
-        }, 300);
-
-        return next;
+  const toggleTable = useCallback(async (tableId: string) => {
+    setStatusesState(prev => {
+      const cur = prev[tableId] ?? "available";
+      const next: TableStatus = cur === "available" ? "occupied" : "available";
+      patchTableStatus(tableId, next).then(ok => {
+        if (!ok) refresh();
       });
-    },
-    []
-  );
+      return { ...prev, [tableId]: next };
+    });
+  }, [refresh]);
 
-  return { statuses, setStatuses, synced };
+  const resetAll = useCallback(async () => {
+    const next = Object.fromEntries(ALL_TABLE_IDS.map(id => [id, "available" as const]));
+    setStatusesState(prev => ({ ...prev, ...next }));
+    const ok = await bulkPatchStatuses(next);
+    if (!ok) refresh();
+  }, [refresh]);
+
+  const occupyAll = useCallback(async () => {
+    const next = Object.fromEntries(ALL_TABLE_IDS.map(id => [id, "occupied" as const]));
+    setStatusesState(prev => ({ ...prev, ...next }));
+    const ok = await bulkPatchStatuses(next);
+    if (!ok) refresh();
+  }, [refresh]);
+
+  return { statuses, toggleTable, resetAll, occupyAll, refresh };
 }

@@ -16,7 +16,7 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Creates a reservation using a PostgreSQL advisory lock to prevent concurrent double-bookings for the same table, date, and time slot.
+ * Creates a reservation using a PostgreSQL advisory lock to prevent concurrent double-bookings. A table with any active future reservation is fully locked until staff unlocks it.
  * @summary Create a table reservation
  */
 
@@ -82,4 +82,42 @@ export const UpdateBookingStatusResponse = zod.object({
   specialRequest: zod.string().nullish(),
   status: zod.enum(["pending", "confirmed", "cancelled"]),
   createdAt: zod.coerce.date(),
+});
+
+/**
+ * Returns computed status for every table. Priority is staff override (occupied) > active booking (reserved) > available. Polls every few seconds for real-time updates.
+ * @summary Get all table statuses
+ */
+export const GetTableStatusesResponse = zod.record(
+  zod.string(),
+  zod.enum(["available", "reserved", "occupied"]),
+);
+
+/**
+ * Sets multiple tables to available or occupied at once. Setting a table to available also cancels its active future reservations.
+ * @summary Bulk update table statuses (staff only)
+ */
+export const BulkUpdateTableStatusesBody = zod.object({
+  statuses: zod.record(zod.string(), zod.enum(["available", "occupied"])),
+});
+
+export const BulkUpdateTableStatusesResponse = zod.object({
+  updated: zod.number(),
+});
+
+/**
+ * Staff sets a table to available or occupied. Setting to available also cancels active future reservations for that table.
+ * @summary Update a single table status (staff only)
+ */
+export const UpdateTableStatusParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateTableStatusBody = zod.object({
+  status: zod.enum(["available", "occupied"]),
+});
+
+export const UpdateTableStatusResponse = zod.object({
+  tableId: zod.string(),
+  status: zod.enum(["available", "occupied"]),
 });
