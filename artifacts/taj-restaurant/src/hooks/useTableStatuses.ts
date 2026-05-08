@@ -120,13 +120,26 @@ export function useTableStatuses() {
     []
   );
 
-  const reserveTable = useCallback(async (tableId: string): Promise<"ok" | "taken" | "error"> => {
+  const refreshStatuses = useCallback(async () => {
+    const cloud = await fetchFromCloud();
+    if (cloud) {
+      applyStatuses(cloud);
+      setSynced(true);
+    }
+  }, [applyStatuses]);
+
+  const reserveTable = useCallback(async (tableId: string): Promise<"ok" | "taken" | "occupied" | "error"> => {
     isWriting.current = true;
     try {
       const cloudState = await fetchFromCloud();
       const base = cloudState ?? latestStatuses.current;
 
-      if (base[tableId] === "reserved" || base[tableId] === "occupied") {
+      if (base[tableId] === "occupied") {
+        applyStatuses(base);
+        return "occupied";
+      }
+
+      if (base[tableId] === "reserved") {
         applyStatuses(base);
         return "taken";
       }
@@ -143,5 +156,5 @@ export function useTableStatuses() {
     }
   }, [applyStatuses]);
 
-  return { statuses, setStatuses, reserveTable, synced };
+  return { statuses, setStatuses, refreshStatuses, reserveTable, synced };
 }
