@@ -17,6 +17,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   tableStatuses: Record<string, TableStatus>;
+  onBookingSuccess?: () => void;
 }
 
 type HallKey = "main" | "ac" | "jungle" | "majlis" | "red" | "new-majlis-family";
@@ -198,7 +199,7 @@ interface BookingSummary {
   note: string;
 }
 
-export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
+export default function ReserveTable({ open, onClose, tableStatuses, onBookingSuccess }: Props) {
   const [step, setStep] = useState<Step>("hall");
   const [selectedHall, setSelectedHall] = useState<Hall | null>(null);
   const [selectedTable, setSelectedTable] = useState<TableOption | null>(null);
@@ -276,6 +277,8 @@ export default function ReserveTable({ open, onClose, tableStatuses }: Props) {
 
     setSummary(bookingSummary);
     setStep("done");
+
+    onBookingSuccess?.();
 
     window.open(buildWhatsAppUrl(bookingSummary), "_blank");
   };

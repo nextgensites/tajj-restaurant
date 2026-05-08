@@ -36,20 +36,20 @@ router.post("/bookings", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Advisory lock prevents two simultaneous requests for the same table
-    // from both passing the checks below.
-    const lockKey1 = `${tableId}::${reservationDate}`;
-    const lockKey2 = reservationTime;
+    // Advisory lock keyed on tableId ONLY — this serialises ALL concurrent
+    // booking attempts for the same table regardless of date/time, so the
+    // anyExisting check below always runs sequentially and can never be
+    // bypassed by two customers picking different time slots simultaneously.
     const lockResult = await client.query<{ acquired: boolean }>(
-      `SELECT pg_try_advisory_xact_lock(hashtext($1), hashtext($2)) AS acquired`,
-      [lockKey1, lockKey2],
+      `SELECT pg_try_advisory_xact_lock(hashtext($1), hashtext('reservation')) AS acquired`,
+      [tableId],
     );
 
     if (!lockResult.rows[0]?.acquired) {
       await client.query("ROLLBACK");
       res.status(409).json({
         error: "Booking in progress",
-        detail: "Another booking for this slot is being processed. Please try again in a moment.",
+        detail: "Another booking for this table is being processed. Please try again in a moment.",
       });
       return;
     }
