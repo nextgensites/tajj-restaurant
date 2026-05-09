@@ -11,7 +11,7 @@ export default defineConfig({
   define: {
     "import.meta.env.VITE_GITHUB_PAGES": JSON.stringify("true"),
     "import.meta.env.VITE_API_BASE_URL": JSON.stringify(
-      process.env.VITE_API_BASE_URL || "https://workspace.arunkumar654890.replit.app"
+      process.env.VITE_API_BASE_URL || "https://tajj-restaurant--Nextgensites.replit.app"
     ),
   },
   plugins: [
