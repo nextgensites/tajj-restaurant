@@ -23,26 +23,42 @@ const allKnownIds = [
   "new-majlis-family-4","new-majlis-family-5",
 ];
 
-// GET /tables/statuses — returns the status for every table.
-// Priority: staff "occupied" > customer "reserved" > "available".
-// "reserved" is written to table_statuses atomically when a booking is created,
-// so this is a single fast lookup — no scan of the reservations table needed.
+// GET /tables/statuses — returns the display status for every table.
+//
+// Priority:
+//   1. "occupied"  — staff manually marked occupied
+//   2. "reserved"  — staff-locked from a today/past-day booking
+//                    OR the reservation date has arrived (reservation_date <= today)
+//   3. "available" — no lock, no current reservation
+//
+// A future-date reservation does NOT colour the table reserved today.
+// The table will automatically turn red on the morning of the reservation date.
 router.get("/tables/statuses", async (_req, res) => {
-  const { rows } = await pool.query<{ table_id: string; status: string }>(
-    `SELECT table_id, status FROM table_statuses`,
-  );
+  const [staffRows, dueTodayRows] = await Promise.all([
+    // Staff-managed overrides: occupied / reserved (same/past-day bookings) / available
+    pool.query<{ table_id: string; status: string }>(
+      `SELECT table_id, status FROM table_statuses`,
+    ),
+    // Reservations whose date has arrived (today or overdue) — drives the automatic lock
+    pool.query<{ table_id: string }>(
+      `SELECT DISTINCT table_id FROM reservations
+       WHERE status != 'cancelled'
+         AND reservation_date <= CURRENT_DATE::text`,
+    ),
+  ]);
 
-  const statusMap: Record<string, string> = {};
-  for (const row of rows) {
-    statusMap[row.table_id] = row.status;
+  const staffMap: Record<string, string> = {};
+  for (const row of staffRows.rows) {
+    staffMap[row.table_id] = row.status;
   }
+
+  const dueTodaySet = new Set(dueTodayRows.rows.map(r => r.table_id));
 
   const result: Record<string, "available" | "reserved" | "occupied"> = {};
   for (const id of allKnownIds) {
-    const s = statusMap[id];
-    if (s === "occupied") {
+    if (staffMap[id] === "occupied") {
       result[id] = "occupied";
-    } else if (s === "reserved") {
+    } else if (staffMap[id] === "reserved" || dueTodaySet.has(id)) {
       result[id] = "reserved";
     } else {
       result[id] = "available";
@@ -53,8 +69,7 @@ router.get("/tables/statuses", async (_req, res) => {
 });
 
 // PATCH /tables/:id/status — staff sets a table to "available" or "occupied".
-// Setting to "available" unlocks the table and cancels all active reservations.
-// Setting to "occupied" overrides any reservation (staff manages the floor).
+// "available" fully unlocks: clears any reserved lock and cancels all reservations.
 router.patch("/tables/:id/status", async (req, res) => {
   const tableId = req.params["id"];
   if (!tableId) {
@@ -82,7 +97,7 @@ router.patch("/tables/:id/status", async (req, res) => {
     );
 
     if (status === "available") {
-      // Cancel all active reservations so the table is fully unlocked.
+      // Cancel every active reservation so the table is fully free.
       await client.query(
         `UPDATE reservations
          SET status = 'cancelled'

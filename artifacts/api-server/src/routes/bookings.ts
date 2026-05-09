@@ -36,8 +36,7 @@ router.post("/bookings", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Advisory lock keyed on tableId only — serialises ALL concurrent booking
-    // attempts for this table regardless of date/time.
+    // Serialise all concurrent booking attempts for this table.
     const lockResult = await client.query<{ acquired: boolean }>(
       `SELECT pg_try_advisory_xact_lock(hashtext($1), hashtext('reservation')) AS acquired`,
       [tableId],
@@ -52,9 +51,7 @@ router.post("/bookings", async (req, res) => {
       return;
     }
 
-    // Single status check covers both staff-occupied AND already-reserved.
-    // table_statuses is written atomically in the same transaction when a
-    // booking succeeds, so this is the definitive source of truth.
+    // Check staff-managed status first (occupied or reserved from a same/past-day booking).
     const statusRow = await client.query<{ status: string }>(
       `SELECT status FROM table_statuses WHERE table_id = $1`,
       [tableId],
@@ -79,7 +76,28 @@ router.post("/bookings", async (req, res) => {
       return;
     }
 
-    // Insert the reservation record.
+    // Prevent booking a table that already has ANY active reservation (any date).
+    // This is separate from the display logic — a table booked for tomorrow is
+    // unavailable for all other customers even though it still shows "available"
+    // on the floor plan today.
+    const anyExisting = await client.query<{ id: number }>(
+      `SELECT id FROM reservations
+       WHERE table_id = $1
+         AND status != 'cancelled'
+       LIMIT 1`,
+      [tableId],
+    );
+
+    if (anyExisting.rows.length > 0) {
+      await client.query("ROLLBACK");
+      res.status(409).json({
+        error: "Table already reserved",
+        detail: `${tableName} in ${hallName} has already been reserved. Please choose a different table or contact the restaurant.`,
+      });
+      return;
+    }
+
+    // Insert the reservation.
     const result = await client.query(
       `INSERT INTO reservations
          (table_id, hall_name, table_name, customer_name, customer_phone,
@@ -90,35 +108,19 @@ router.post("/bookings", async (req, res) => {
        reservationDate, reservationTime, guestCount, specialRequest ?? null],
     );
 
-    // Lock the table immediately in the same transaction.
-    // This is the authoritative lock — table_id is a primary key so a second
-    // concurrent booking that slipped past the advisory lock will hit a
-    // unique-violation here and be rejected.
-    await client.query(
-      `INSERT INTO table_statuses (table_id, status, updated_at)
-       VALUES ($1, 'reserved', NOW())
-       ON CONFLICT (table_id) DO UPDATE
-         SET status = 'reserved', updated_at = NOW()
-         WHERE table_statuses.status NOT IN ('occupied', 'reserved')`,
-      [tableId],
-    );
-
-    // If the upsert didn't change any row it means the table was already
-    // occupied or reserved (race between the check above and now).
-    const locked = await client.query<{ status: string }>(
-      `SELECT status FROM table_statuses WHERE table_id = $1`,
-      [tableId],
-    );
-    const lockedStatus = locked.rows[0]?.status;
-    if (lockedStatus !== "reserved") {
-      await client.query("ROLLBACK");
-      res.status(409).json({
-        error: lockedStatus === "occupied" ? "Table unavailable" : "Table already reserved",
-        detail: lockedStatus === "occupied"
-          ? `${tableName} in ${hallName} is currently occupied.`
-          : `${tableName} in ${hallName} was just reserved by someone else. Please choose a different table.`,
-      });
-      return;
+    // Write the lock to table_statuses ONLY if the reservation is for today or a past date.
+    // Future-date reservations don't lock the visual floor plan today — they will
+    // automatically appear as "reserved" when their date arrives (see GET /tables/statuses).
+    const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    if (reservationDate <= todayStr) {
+      await client.query(
+        `INSERT INTO table_statuses (table_id, status, updated_at)
+         VALUES ($1, 'reserved', NOW())
+         ON CONFLICT (table_id) DO UPDATE
+           SET status = 'reserved', updated_at = NOW()
+           WHERE table_statuses.status NOT IN ('occupied', 'reserved')`,
+        [tableId],
+      );
     }
 
     await client.query("COMMIT");
